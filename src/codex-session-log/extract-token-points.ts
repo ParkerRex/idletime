@@ -1,5 +1,9 @@
 import { expectObject, readOptionalString } from "./codex-log-values.ts";
-import { readTokenUsage, subtractTokenUsages } from "./token-usage.ts";
+import {
+  readTokenUsage,
+  subtractTokenUsages,
+  zeroTokenUsage,
+} from "./token-usage.ts";
 import type { CodexLogLine } from "./codex-log-line.ts";
 import type { TokenDeltaPoint, TokenPoint } from "./types.ts";
 
@@ -22,12 +26,20 @@ export function extractTokenPoints(records: CodexLogLine[]): TokenPoint[] {
     }
 
     const infoRecord = expectObject(info, "event_msg.payload.info");
+    const lastUsageValue = infoRecord.last_token_usage;
     tokenPoints.push({
       timestamp: record.timestamp,
       usage: readTokenUsage(
         infoRecord.total_token_usage,
         "event_msg.payload.info.total_token_usage",
       ),
+      lastUsage:
+        lastUsageValue === null || lastUsageValue === undefined
+          ? null
+          : readTokenUsage(
+              lastUsageValue,
+              "event_msg.payload.info.last_token_usage",
+            ),
     });
   }
 
@@ -47,13 +59,29 @@ export function buildTokenDeltaPoints(
     deltaPoints.push({
       timestamp: tokenPoint.timestamp,
       cumulativeUsage: tokenPoint.usage,
-      deltaUsage: previousPoint
-        ? subtractTokenUsages(tokenPoint.usage, previousPoint.usage)
-        : tokenPoint.usage,
+      deltaUsage: resolveTokenDeltaUsage(tokenPoint, previousPoint),
     });
 
     previousPoint = tokenPoint;
   }
 
   return deltaPoints;
+}
+
+function resolveTokenDeltaUsage(
+  tokenPoint: TokenPoint,
+  previousPoint: TokenPoint | null,
+) {
+  // Modern Codex logs emit the per-event delta directly, while cumulative totals
+  // can reset between tasks inside a long-lived session.
+  if (tokenPoint.lastUsage) {
+    return tokenPoint.lastUsage;
+  }
+
+  if (!previousPoint) {
+    return tokenPoint.usage;
+  }
+
+  return subtractTokenUsages(tokenPoint.usage, previousPoint.usage)
+    ?? zeroTokenUsage();
 }

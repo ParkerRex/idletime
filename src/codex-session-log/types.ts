@@ -12,6 +12,7 @@ export type TokenUsage = {
 export type TokenPoint = {
   timestamp: Date;
   usage: TokenUsage;
+  lastUsage: TokenUsage | null;
 };
 
 export type TokenDeltaPoint = {

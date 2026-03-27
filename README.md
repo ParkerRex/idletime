@@ -178,6 +178,19 @@ bun run typecheck
 bun test
 ```
 
+Release QA:
+
+```bash
+bun run qa
+```
+
+That QA pass reads:
+
+- `qa/data/user-journeys.csv` for installed-binary shell journeys
+- `qa/data/coverage-matrix.csv` for required release coverage rows
+
+It builds the package, packs the current checkout, installs the tarball into an isolated temp `BUN_INSTALL`, seeds synthetic Codex session logs, and runs the shell journeys against the installed `idletime` binary.
+
 ## Release Prep
 
 Build the publishable CLI bundle:
@@ -191,6 +204,13 @@ Dry-run the release checks:
 ```bash
 bun run check:release
 ```
+
+`check:release` now runs:
+
+- `bun run typecheck`
+- `bun test`
+- `bun run qa`
+- `npm pack --dry-run`
 
 Dry-run the Bun publish flow:
 
@@ -206,11 +226,15 @@ bun run pack:dry-run
 
 ## GitHub Release Flow
 
-This repo now includes a publish workflow at `.github/workflows/publish.yml`.
+This repo now includes:
+
+- `.github/workflows/ci.yml` for push and pull-request release checks
+- `.github/workflows/publish.yml` for the actual npm publish flow
 
 What it does:
 
-- runs on manual dispatch or GitHub release publish
+- `ci.yml` runs on pushes to `dev` and `main`, plus pull requests
+- `publish.yml` runs on manual dispatch or GitHub release publish
 - installs Bun and Node on a GitHub-hosted runner
 - runs `bun run check:release`
 - publishes to npm with `npm publish --access public --provenance`

@@ -1,6 +1,6 @@
 {
   "name": "idletime",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Visual CLI for Codex focus, token burn, spikes, and idle time from local session logs.",
   "author": "ParkerRex",
   "main": "./dist/idletime.js",
@@ -44,12 +44,15 @@
   "sideEffects": false,
   "scripts": {
     "build": "bun run src/release/build-package.ts",
-    "check:release": "bun run typecheck && bun test && bun run build && npm pack --dry-run",
+    "check:release": "bun run typecheck && bun test && bun run qa && npm pack --dry-run",
     "dev": "bun run src/cli/idletime-bin.ts",
     "idletime": "bun run src/cli/idletime-bin.ts",
     "pack:dry-run": "npm pack --dry-run",
     "publish:dry-run": "bun run build && bun publish --dry-run --access public",
     "prepublishOnly": "bun run check:release",
+    "qa": "bun run qa:gaps && bun run qa:journeys",
+    "qa:gaps": "bun run qa/find-gaps.ts",
+    "qa:journeys": "bun run qa/run-shell-journeys.ts",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },

@@ -1,0 +1,13 @@
+surface,layer,required,status,evidence
+installed binary version,bun-global-smoke,yes,covered,journey:installed-version
+installed binary help,bun-global-smoke,yes,covered,journey:help-screen
+default dashboard render,bun-global-smoke,yes,covered,journey:default-dashboard
+share dashboard render,bun-global-smoke,yes,covered,journey:share-dashboard
+today command render,bun-global-smoke,yes,covered,journey:today-dashboard
+hourly command render,bun-global-smoke,yes,covered,journey:hourly-dashboard
+token reset parser regression,unit-test,yes,covered,file:test/codex-session-log.test.ts
+summary token reset regression,unit-test,yes,covered,file:test/reporting.test.ts
+release smoke runner,release-gate,yes,covered,file:qa/run-shell-journeys.ts
+coverage gap check,release-gate,yes,covered,file:qa/find-gaps.ts
+push and pull request CI,ci,yes,covered,file:.github/workflows/ci.yml
+publish workflow release checks,ci,yes,covered,file:.github/workflows/publish.yml

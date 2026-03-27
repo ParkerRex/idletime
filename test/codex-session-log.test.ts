@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { buildTokenDeltaPoints } from "../src/codex-session-log/extract-token-points.ts";
 import { parseCodexSession } from "../src/codex-session-log/parse-codex-session.ts";
 import { readCodexSessions } from "../src/codex-session-log/read-codex-sessions.ts";
+import type { TokenPoint, TokenUsage } from "../src/codex-session-log/types.ts";
 
 const fixtureRootDirectory = join(import.meta.dir, "fixtures", "codex-session-log");
 const directFixturePath = join(
@@ -56,4 +57,62 @@ describe("codex session parsing", () => {
     );
     expect(parsedSessions[1]?.primaryModel).toBe("gpt-5.4-mini");
   });
+
+  test("uses last token usage when cumulative totals reset", () => {
+    const tokenDeltaPoints = buildTokenDeltaPoints([
+      createTokenPoint(
+        "2026-03-26T19:34:10.000Z",
+        createUsage(100, 0, 20, 120),
+        createUsage(100, 0, 20, 120),
+      ),
+      createTokenPoint(
+        "2026-03-26T19:40:10.000Z",
+        createUsage(140, 0, 40, 180),
+        createUsage(40, 0, 20, 60),
+      ),
+      createTokenPoint(
+        "2026-03-26T19:41:10.000Z",
+        createUsage(0, 0, 0, 950000),
+        createUsage(0, 0, 0, 0),
+      ),
+      createTokenPoint(
+        "2026-03-26T19:45:10.000Z",
+        createUsage(25, 0, 15, 950040),
+        createUsage(25, 0, 15, 40),
+      ),
+    ]);
+
+    expect(tokenDeltaPoints.map((tokenDeltaPoint) => tokenDeltaPoint.deltaUsage.totalTokens))
+      .toEqual([120, 60, 0, 40]);
+    expect(tokenDeltaPoints.map((tokenDeltaPoint) => tokenDeltaPoint.deltaUsage.practicalBurn))
+      .toEqual([120, 60, 0, 40]);
+  });
 });
+
+function createTokenPoint(
+  timestamp: string,
+  usage: TokenUsage,
+  lastUsage: TokenUsage | null,
+): TokenPoint {
+  return {
+    timestamp: new Date(timestamp),
+    usage,
+    lastUsage,
+  };
+}
+
+function createUsage(
+  inputTokens: number,
+  cachedInputTokens: number,
+  outputTokens: number,
+  totalTokens: number,
+): TokenUsage {
+  return {
+    inputTokens,
+    cachedInputTokens,
+    outputTokens,
+    reasoningOutputTokens: 0,
+    totalTokens,
+    practicalBurn: inputTokens - cachedInputTokens + outputTokens,
+  };
+}

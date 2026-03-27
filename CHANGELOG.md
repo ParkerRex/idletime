@@ -4,6 +4,22 @@ All notable changes to `idletime` will be documented in this file.
 
 The format is based on Keep a Changelog and this project currently tracks release-ready snapshots manually.
 
+## [0.1.2] - 2026-03-27
+
+### Fixed
+
+- Stopped the installed CLI from crashing on real Codex log streams where `total_token_usage` resets between tasks.
+- Switched token delta reporting to prefer `last_token_usage` when present, while keeping a safe fallback for older logs.
+
+### Added
+
+- Added a `qa/` release safety layer with CSV-driven installed-binary journeys and a coverage-matrix gap checker.
+- Added a CI workflow that runs the same release checks on pushes to `dev` and `main`, plus pull requests.
+
+### Changed
+
+- `check:release` now runs the packaged Bun smoke journeys before publish.
+
 ## [0.1.1] - 2026-03-27
 
 ### Changed

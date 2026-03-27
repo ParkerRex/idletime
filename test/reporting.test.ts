@@ -117,6 +117,69 @@ describe("reporting", () => {
     expect(hourlyReport.buckets[1]?.practicalBurn).toBe(60);
   });
 
+  test("ignores cumulative token resets between tasks", () => {
+    const reportWindow = {
+      label: "reset-window",
+      start: new Date("2026-03-26T09:00:00-04:00"),
+      end: new Date("2026-03-26T10:00:00-04:00"),
+      timeZone: "America/New_York",
+    };
+    const report = buildSummaryReport(
+      [
+        createSession({
+          sessionId: "direct-reset",
+          kind: "direct",
+          eventTimes: [
+            "2026-03-26T09:05:00-04:00",
+            "2026-03-26T09:25:00-04:00",
+            "2026-03-26T09:35:00-04:00",
+          ],
+          userMessageTimes: ["2026-03-26T09:05:00-04:00"],
+          tokenPoints: [
+            createTokenPoint(
+              "2026-03-26T09:05:00-04:00",
+              createUsage(100, 0, 0, 100),
+              createUsage(100, 0, 0, 100),
+            ),
+            createTokenPoint(
+              "2026-03-26T09:15:00-04:00",
+              createUsage(140, 0, 20, 160),
+              createUsage(40, 0, 20, 60),
+            ),
+            createTokenPoint(
+              "2026-03-26T09:20:00-04:00",
+              createUsage(0, 0, 0, 950000),
+              createUsage(0, 0, 0, 0),
+            ),
+            createTokenPoint(
+              "2026-03-26T09:30:00-04:00",
+              createUsage(25, 0, 15, 950040),
+              createUsage(25, 0, 15, 40),
+            ),
+          ],
+          usage: createUsage(25, 0, 15, 950040),
+          model: "gpt-5.4",
+          reasoningEffort: "medium",
+        }),
+      ],
+      {
+        filters: {
+          workspaceOnlyPrefix: null,
+          sessionKind: null,
+          model: null,
+          reasoningEffort: null,
+        },
+        groupBy: [],
+        idleCutoffMs: parseDurationToMs("15m"),
+        wakeWindow: null,
+        window: reportWindow,
+      },
+    );
+
+    expect(report.tokenTotals.rawTotalTokens).toBe(200);
+    expect(report.tokenTotals.practicalBurn).toBe(200);
+  });
+
   test("builds the idletime wordmark band at panel width", () => {
     const logoLines = buildLogoSection(72, {
       colorEnabled: false,
@@ -176,10 +239,15 @@ function createSession(input: {
   };
 }
 
-function createTokenPoint(timestamp: string, usage: TokenUsage): TokenPoint {
+function createTokenPoint(
+  timestamp: string,
+  usage: TokenUsage,
+  lastUsage: TokenUsage | null = null,
+): TokenPoint {
   return {
     timestamp: new Date(timestamp),
     usage,
+    lastUsage,
   };
 }
 

@@ -44,7 +44,7 @@ export function readTokenUsage(
 export function subtractTokenUsages(
   currentUsage: TokenUsage,
   previousUsage: TokenUsage,
-): TokenUsage {
+): TokenUsage | null {
   const nextUsage = {
     inputTokens: currentUsage.inputTokens - previousUsage.inputTokens,
     cachedInputTokens:
@@ -59,7 +59,7 @@ export function subtractTokenUsages(
 
   for (const [key, value] of Object.entries(nextUsage)) {
     if (value < 0) {
-      throw new Error(`Token usage regressed for ${key}.`);
+      return null;
     }
   }
 
