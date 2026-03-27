@@ -2,10 +2,19 @@
   "name": "idletime",
   "version": "0.1.0",
   "description": "Visual CLI for Codex focus, token burn, spikes, and idle time from local session logs.",
+  "author": "ParkerRex",
   "main": "./dist/idletime.js",
   "module": "dist/idletime.js",
   "bin": {
     "idletime": "./dist/idletime.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ParkerRex/idletime.git"
+  },
+  "homepage": "https://github.com/ParkerRex/idletime#readme",
+  "bugs": {
+    "url": "https://github.com/ParkerRex/idletime/issues"
   },
   "publishConfig": {
     "access": "public",
@@ -13,6 +22,7 @@
   },
   "files": [
     "dist",
+    "assets",
     "README.md"
   ],
   "engines": {

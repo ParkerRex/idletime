@@ -16,6 +16,8 @@ The format is based on Keep a Changelog and this project currently tracks releas
 - Screenshot-friendly `--share` mode.
 - Model and reasoning-effort grouping via `--group-by`.
 - Packaging and release scripts for npm and Bun distribution.
+- GitHub Actions publish workflow for npm release.
+- README screenshot asset for the package page and GitHub landing view.
 
 ### Changed
 

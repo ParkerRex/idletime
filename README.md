@@ -10,6 +10,8 @@ Local Bun CLI for Codex activity, token burn, visual 24-hour rhythm charts, and 
 - Which hours spiked in token burn?
 - How much of the day was direct work versus subagent runtime?
 
+![idletime dashboard screenshot](./assets/idle-time-readme.png)
+
 ## How It Works
 
 `idletime` is read-only. It scans your local Codex session logs under `~/.codex/sessions/YYYY/MM/DD/*.jsonl` and builds reports from those raw events.
@@ -202,6 +204,23 @@ Preview exactly what npm would ship:
 bun run pack:dry-run
 ```
 
+## GitHub Release Flow
+
+This repo now includes a publish workflow at `.github/workflows/publish.yml`.
+
+What it does:
+
+- runs on manual dispatch or GitHub release publish
+- installs Bun and Node on a GitHub-hosted runner
+- runs `bun run check:release`
+- publishes to npm with `npm publish --access public --provenance`
+
+What you need in GitHub:
+
+- the `NPM_TOKEN` secret already added to the repo
+- the repo pushed to GitHub so Actions can run
+- the repo URL in `package.json` now points at `https://github.com/ParkerRex/idletime`
+
 ## Release Notes
 
 - The published binary is `idletime`.
@@ -240,6 +259,7 @@ Important:
 - trusted publishing currently requires GitHub-hosted runners
 - trusted publishing is preferred over long-lived tokens
 - provenance is enabled in `package.json`, but for provenance to be fully useful you should also add the real public GitHub `repository` metadata before first publish
+- since you already added `NPM_TOKEN`, the included GitHub Actions workflow can publish with the token path right now
 
 ## Before First Publish
 
@@ -247,4 +267,4 @@ Important:
 - add the actual GitHub repo metadata to `package.json`
 - run `bun run check:release`
 - recheck `npm view idletime version`
-- publish
+- either publish from GitHub Releases or run the workflow manually

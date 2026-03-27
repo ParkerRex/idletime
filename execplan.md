@@ -33,6 +33,7 @@ When this plan is complete, someone should be able to open a terminal, change in
 - [x] 2026-03-27 00:45 EDT: Added ANSI color lanes, top-3 spike callouts, and a `--share` mode that trims the dashboard into a screenshot-oriented card while preserving the same core metrics.
 - [x] 2026-03-27 00:47 EDT: Expanded the CLI help text and README so the dashboard lanes, modes, flags, examples, and screenshot flow are self-explanatory without reading the source.
 - [x] 2026-03-27 00:54 EDT: Prepared the project for npm and Bun release with a real `bin` entry, Node-compatible built output in `dist/idletime.js`, release-check scripts, install and publish docs, and a working `--version` flag.
+- [x] 2026-03-27 01:15 EDT: Added the README dashboard screenshot asset, a `CHANGELOG.md`, and a GitHub Actions npm publish workflow that uses the repo `NPM_TOKEN` secret.
 - [x] 2026-03-27 00:23 EDT: Deferred idle-time v2. The manual wake-window path now answers the core question cleanly enough for v1, while machine sleep and lock telemetry remains intentionally out of scope for this pass.
 
 ## Surprises & Discoveries
@@ -113,6 +114,8 @@ The final screenshot pass added two important product behaviors. First, the top 
 The last usability pass was mostly explanatory rather than computational. Richer `--help` output, better error guidance, and a fuller README materially reduce onboarding friction because the product now explains its own lanes and flags at the command line.
 
 The release-prep pass found one non-obvious Bun quirk: `bun publish --dry-run` still requires npm authentication even after a successful local pack and release check. That is now documented as an external precondition rather than a packaging bug inside this repo.
+
+The final packaging pass also made the tarball meaningfully larger because the README screenshot is now shipped with the package. That is acceptable for v0.1.0 because the package remains small enough to publish cleanly, but if install size starts to matter the screenshot asset is the first thing to optimize.
 
 The remaining deliberate gap is Milestone 5. Idle-time v2 is deferred rather than half-shipped. Manual wake windows are now good enough to answer the human “where did my wake hours go?” question, and the correct next step for v2 is dedicated macOS telemetry research rather than speculative code.
 
