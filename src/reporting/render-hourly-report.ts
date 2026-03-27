@@ -7,8 +7,12 @@ import {
   padRight,
   shortenPath,
 } from "./report-formatting.ts";
+import {
+  buildLogoSection,
+  resolveLogoSectionWidth,
+} from "./render-logo-section.ts";
 import { buildRhythmSection } from "./render-rhythm-section.ts";
-import { dim, paint } from "./render-theme.ts";
+import { dim, measureVisibleTextWidth, paint } from "./render-theme.ts";
 import { renderPanel, renderSectionTitle } from "./render-shared-sections.ts";
 import { buildSpikeSection } from "./render-spike-section.ts";
 import type { HourlyReport, RenderOptions } from "./types.ts";
@@ -40,29 +44,33 @@ function renderFullHourlyReport(
     report.buckets[0]!,
   );
 
-  lines.push(
-    ...renderPanel(`idletime hourly • ${report.window.label}`, [
-      `${formatTimestamp(report.window.start, report.window)} -> ${formatTimestamp(
-        report.window.end,
-        report.window,
-      )}`,
-      buildFilterLine(report),
-      `peaks burn ${formatCompactInteger(
-        peakBurnBucket.practicalBurn,
-      )} @ ${formatHourBucketLabel(
-        peakBurnBucket.start,
-        report.window,
-      )} • focus ${formatDurationCompact(
-        peakFocusBucket.engagedMs,
-      )} @ ${formatHourBucketLabel(
-        peakFocusBucket.start,
-        report.window,
-      )} • concurrency ${Math.max(
-        ...report.buckets.map((bucket) => bucket.peakConcurrentAgents),
-        0,
-      )}`,
-    ], options),
-  );
+  const panelLines = renderPanel(`idletime hourly • ${report.window.label}`, [
+    `${formatTimestamp(report.window.start, report.window)} -> ${formatTimestamp(
+      report.window.end,
+      report.window,
+    )}`,
+    buildFilterLine(report),
+    `peaks burn ${formatCompactInteger(
+      peakBurnBucket.practicalBurn,
+    )} @ ${formatHourBucketLabel(
+      peakBurnBucket.start,
+      report.window,
+    )} • focus ${formatDurationCompact(
+      peakFocusBucket.engagedMs,
+    )} @ ${formatHourBucketLabel(
+      peakFocusBucket.start,
+      report.window,
+    )} • concurrency ${Math.max(
+      ...report.buckets.map((bucket) => bucket.peakConcurrentAgents),
+      0,
+    )}`,
+  ], options);
+  const panelWidth = measureVisibleTextWidth(panelLines[0] ?? "");
+  const logoSectionWidth = resolveLogoSectionWidth(panelWidth, options);
+
+  lines.push(...buildLogoSection(logoSectionWidth, options));
+  lines.push("");
+  lines.push(...panelLines);
   lines.push("");
   lines.push(...buildRhythmSection(report, options));
   lines.push("");
@@ -140,18 +148,22 @@ function renderShareHourlyReport(
     report.buckets[0]!,
   );
 
-  lines.push(
-    ...renderPanel(`idletime hourly • ${report.window.label}`, [
-      `${formatTimestamp(report.window.start, report.window)} -> ${formatTimestamp(
-        report.window.end,
-        report.window,
-      )}`,
-      buildFilterLine(report),
-      `peak burn ${formatCompactInteger(
-        peakBurnBucket.practicalBurn,
-      )} @ ${formatHourBucketLabel(peakBurnBucket.start, report.window)}`,
-    ], options),
-  );
+  const panelLines = renderPanel(`idletime hourly • ${report.window.label}`, [
+    `${formatTimestamp(report.window.start, report.window)} -> ${formatTimestamp(
+      report.window.end,
+      report.window,
+    )}`,
+    buildFilterLine(report),
+    `peak burn ${formatCompactInteger(
+      peakBurnBucket.practicalBurn,
+    )} @ ${formatHourBucketLabel(peakBurnBucket.start, report.window)}`,
+  ], options);
+  const panelWidth = measureVisibleTextWidth(panelLines[0] ?? "");
+  const logoSectionWidth = resolveLogoSectionWidth(panelWidth, options);
+
+  lines.push(...buildLogoSection(logoSectionWidth, options));
+  lines.push("");
+  lines.push(...panelLines);
   lines.push("");
   lines.push(...buildRhythmSection(report, options));
   lines.push("");

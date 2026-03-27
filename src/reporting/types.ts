@@ -68,6 +68,7 @@ export type SummaryBreakdown = {
 export type RenderOptions = {
   colorEnabled: boolean;
   shareMode: boolean;
+  terminalWidth: number | null;
 };
 
 export type SummaryReport = {

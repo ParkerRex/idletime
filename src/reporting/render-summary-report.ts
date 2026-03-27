@@ -5,7 +5,6 @@ import {
   formatDurationCompact,
   formatDurationClock,
   formatDurationHours,
-  formatHourOfDay,
   formatInteger,
   formatPercentage,
   formatSignedDurationHours,
@@ -13,10 +12,15 @@ import {
   padRight,
   shortenPath,
 } from "./report-formatting.ts";
-import { buildRhythmSection } from "./render-rhythm-section.ts";
+import {
+  buildLogoSection,
+  resolveLogoSectionWidth,
+} from "./render-logo-section.ts";
+import {
+  buildRhythmSection,
+} from "./render-rhythm-section.ts";
 import { renderPanel, renderSectionTitle } from "./render-shared-sections.ts";
-import { dim, paint } from "./render-theme.ts";
-import { buildSpikeSection } from "./render-spike-section.ts";
+import { dim, measureVisibleTextWidth, paint } from "./render-theme.ts";
 import type { HourlyReport, RenderOptions, SummaryReport } from "./types.ts";
 
 const summaryBarWidth = 18;
@@ -43,29 +47,24 @@ function renderFullSummaryReport(
     report.window.end.getTime() - report.window.start.getTime();
   const headerLines = [
     formatTimeRange(report.window.start, report.window.end, report.window),
-    report.activityWindow
-      ? `active ${formatTimeRange(
-          report.activityWindow.start,
-          report.activityWindow.end,
-          report.window,
-        )}`
-      : "active no matching sessions",
-    buildHeaderMeta(report),
+    `${report.sessionCounts.total} sessions · ${formatDurationHours(requestedMetrics.strictEngagementMs)} focused · ${formatCompactInteger(report.tokenTotals.practicalBurn)} tokens`,
     ...formatAppliedFilters(report).map((filter) => `filter ${filter}`),
   ];
 
-  if (hourlyReport) {
-    headerLines.push(buildPeakLine(hourlyReport));
-  }
-
-  lines.push(
-    ...renderPanel(`idletime • ${report.window.label}`, headerLines, options),
+  const panelLines = renderPanel(
+    `idletime • ${report.window.label}`,
+    headerLines,
+    options,
   );
+  const panelWidth = measureVisibleTextWidth(panelLines[0] ?? "");
+  const logoSectionWidth = resolveLogoSectionWidth(panelWidth, options);
+
+  lines.push(...buildLogoSection(logoSectionWidth, options));
+  lines.push("");
+  lines.push(...panelLines);
   if (hourlyReport) {
     lines.push("");
     lines.push(...buildRhythmSection(hourlyReport, options));
-    lines.push("");
-    lines.push(...buildSpikeSection(hourlyReport, options));
   }
   lines.push("");
   lines.push(...renderSectionTitle("Activity", options));
@@ -124,19 +123,23 @@ function renderFullSummaryReport(
     ),
   );
   lines.push(
-    `${paint(padRight("  session mix", 14), "muted", options)} ${paint(buildSplitBar(
-      [
-        {
-          filledCharacter: "█",
-          value: report.sessionCounts.direct,
-        },
-        {
-          filledCharacter: "▓",
-          value: report.sessionCounts.subagent,
-        },
-      ],
-      summaryBarWidth,
-    ), "active", options)}  ${paint(
+    `${paint(padRight("  session mix", 14), "muted", options)} ${paint(
+      buildSplitBar(
+        [
+          {
+            filledCharacter: "█",
+            value: report.sessionCounts.direct,
+          },
+          {
+            filledCharacter: "▓",
+            value: report.sessionCounts.subagent,
+          },
+        ],
+        summaryBarWidth,
+      ),
+      "active",
+      options,
+    )}  ${paint(
       `${report.sessionCounts.direct} direct / ${report.sessionCounts.subagent} subagent`,
       "value",
       options,
@@ -164,6 +167,7 @@ function renderFullSummaryReport(
       "█",
       "burn",
       options,
+      "burn",
     ),
   );
   lines.push(
@@ -173,9 +177,10 @@ function renderFullSummaryReport(
       maxRawValue,
       formatCompactInteger(report.tokenTotals.rawTotalTokens),
       `${formatInteger(report.tokenTotals.rawTotalTokens)} total`,
-      "▓",
-      "burn",
+      "█",
+      "raw",
       options,
+      "raw",
     ),
   );
   lines.push(
@@ -185,11 +190,13 @@ function renderFullSummaryReport(
       maxBurnValue,
       formatCompactInteger(report.directTokenTotals.practicalBurn),
       `${formatPercentage(
-        report.directTokenTotals.practicalBurn / report.tokenTotals.practicalBurn,
+        report.directTokenTotals.practicalBurn /
+          report.tokenTotals.practicalBurn,
       )} of burn`,
       "▒",
       "burn",
       options,
+      "burn",
     ),
   );
   lines.push(
@@ -199,11 +206,13 @@ function renderFullSummaryReport(
       maxRawValue,
       formatCompactInteger(report.directTokenTotals.rawTotalTokens),
       `${formatPercentage(
-        report.directTokenTotals.rawTotalTokens / report.tokenTotals.rawTotalTokens,
+        report.directTokenTotals.rawTotalTokens /
+          report.tokenTotals.rawTotalTokens,
       )} of raw`,
-      "▚",
-      "burn",
+      "▒",
+      "raw",
       options,
+      "raw",
     ),
   );
 
@@ -260,11 +269,9 @@ function renderFullSummaryReport(
     );
     lines.push(
       `${paint(padRight("  longest gap", 14), "muted", options)} ${paint(
-        formatDurationClock(
-        report.wakeSummary.longestIdleGapMs,
-      ),
-      "value",
-      options,
+        formatDurationClock(report.wakeSummary.longestIdleGapMs),
+        "value",
+        options,
       )}  ${dim("largest quiet stretch", options)}`,
     );
   }
@@ -285,18 +292,19 @@ function renderFullSummaryReport(
     );
     for (const row of groupBreakdown.rows) {
       lines.push(
-        `${paint(padRight(`  ${row.key}`, 20), "muted", options)} ${paint(buildBar(
-          row.practicalBurn,
-          maxBreakdownBurn,
-          14,
-          "█",
-        ), "burn", options)}  ${paint(padRight(formatCompactInteger(row.practicalBurn), 6), "value", options)} ${dim("burn", options)}  ${paint(padRight(
-          formatDurationCompact(row.directActivityMs),
-          5,
-        ), "active", options)} ${dim("direct", options)}  ${paint(padRight(
-          formatDurationCompact(row.agentCoverageMs),
-          5,
-        ), "agent", options)} ${dim("live", options)}  ${paint(`${row.sessionCount} s`, "value", options)}`,
+        `${paint(padRight(`  ${row.key}`, 20), "muted", options)} ${paint(
+          buildBar(row.practicalBurn, maxBreakdownBurn, 14, "█"),
+          "burn",
+          options,
+        )}  ${paint(padRight(formatCompactInteger(row.practicalBurn), 6), "value", options)} ${dim("burn", options)}  ${paint(
+          padRight(formatDurationCompact(row.directActivityMs), 5),
+          "active",
+          options,
+        )} ${dim("direct", options)}  ${paint(
+          padRight(formatDurationCompact(row.agentCoverageMs), 5),
+          "agent",
+          options,
+        )} ${dim("live", options)}  ${paint(`${row.sessionCount} s`, "value", options)}`,
       );
     }
   }
@@ -312,28 +320,25 @@ function renderShareSummaryReport(
   const lines: string[] = [];
   const headerLines = [
     formatTimeRange(report.window.start, report.window.end, report.window),
-    report.activityWindow
-      ? `active ${formatTimeRange(
-          report.activityWindow.start,
-          report.activityWindow.end,
-          report.window,
-        )}`
-      : "active no matching sessions",
-    buildHeaderMeta(report),
+    `${report.sessionCounts.total} sessions · ${formatDurationHours(report.metrics.strictEngagementMs)} focused · ${formatCompactInteger(report.tokenTotals.practicalBurn)} tokens`,
     ...formatAppliedFilters(report).map((filter) => `filter ${filter}`),
   ];
 
-  if (hourlyReport) {
-    headerLines.push(buildPeakLine(hourlyReport));
-  }
+  const panelLines = renderPanel(
+    `idletime • ${report.window.label}`,
+    headerLines,
+    options,
+  );
+  const panelWidth = measureVisibleTextWidth(panelLines[0] ?? "");
+  const logoSectionWidth = resolveLogoSectionWidth(panelWidth, options);
 
-  lines.push(...renderPanel(`idletime • ${report.window.label}`, headerLines, options));
+  lines.push(...buildLogoSection(logoSectionWidth, options));
+  lines.push("");
+  lines.push(...panelLines);
 
   if (hourlyReport) {
     lines.push("");
     lines.push(...buildRhythmSection(hourlyReport, options));
-    lines.push("");
-    lines.push(...buildSpikeSection(hourlyReport, options));
   }
 
   lines.push("");
@@ -443,35 +448,6 @@ function formatDurationLabel(durationMs: number): string {
   return `${Math.round(durationMs / 60_000)}m`;
 }
 
-function buildHeaderMeta(report: SummaryReport): string {
-  return `${report.sessionCounts.total} sessions • ${report.sessionCounts.direct} direct • ${report.sessionCounts.subagent} subagent • peak ${report.metrics.peakConcurrentAgents} agents`;
-}
-
-function buildPeakLine(report: HourlyReport): string {
-  const peakBurnBucket = report.buckets.reduce(
-    (currentPeak, bucket) =>
-      bucket.practicalBurn > currentPeak.practicalBurn ? bucket : currentPeak,
-    report.buckets[0]!,
-  );
-  const peakFocusBucket = report.buckets.reduce(
-    (currentPeak, bucket) =>
-      bucket.engagedMs > currentPeak.engagedMs ? bucket : currentPeak,
-    report.buckets[0]!,
-  );
-
-  return `peaks burn ${formatCompactInteger(
-    peakBurnBucket.practicalBurn,
-  )} @ ${formatHourOfDay(
-    peakBurnBucket.start,
-    report.window,
-  )} • focus ${formatDurationCompact(
-    peakFocusBucket.engagedMs,
-  )} @ ${formatHourOfDay(
-    peakFocusBucket.start,
-    report.window,
-  )}`;
-}
-
 function renderMetricRow(
   label: string,
   value: number,
@@ -479,15 +455,22 @@ function renderMetricRow(
   primaryText: string,
   detailText: string,
   filledCharacter: string,
-  role: "active" | "agent" | "burn" | "focus" | "idle",
+  role: "active" | "agent" | "burn" | "focus" | "idle" | "raw",
   options: RenderOptions,
+  valueRole:
+    | "active"
+    | "agent"
+    | "burn"
+    | "focus"
+    | "idle"
+    | "raw"
+    | "value" = "value",
 ): string {
-  return `${paint(padRight(`  ${label}`, 14), "muted", options)} ${paint(buildBar(
-    value,
-    maxValue,
-    summaryBarWidth,
-    filledCharacter,
-  ), role, options)}  ${paint(padRight(primaryText, 7), "value", options)} ${dim(
+  return `${paint(padRight(`  ${label}`, 14), "muted", options)} ${paint(
+    buildBar(value, maxValue, summaryBarWidth, filledCharacter),
+    role,
+    options,
+  )}  ${paint(padRight(primaryText, 7), valueRole, options)} ${dim(
     detailText,
     options,
   )}`;

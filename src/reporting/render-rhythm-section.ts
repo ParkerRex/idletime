@@ -9,6 +9,8 @@ import { paint } from "./render-theme.ts";
 import { renderSectionTitle } from "./render-shared-sections.ts";
 import type { HourlyReport, RenderOptions } from "./types.ts";
 
+const groupSize = 4;
+
 export function buildRhythmSection(
   report: HourlyReport,
   options: RenderOptions,
@@ -27,12 +29,21 @@ export function buildRhythmSection(
     : quietValues;
   const idleLabel = report.hasWakeWindow ? "idle" : "quiet";
 
-  return [
+  const idleTotal = formatDurationCompact(
+    idleValues.reduce(
+      (totalDurationMs, idleDurationMs) => totalDurationMs + idleDurationMs,
+      0,
+    ),
+  );
+
+  const lines: string[] = [
     ...renderSectionTitle("24h Rhythm", options),
     paint(`  hours  ${buildHourMarkerLine(report)}`, "muted", options),
     renderRhythmRow(
       "focus",
-      buildSparkline(report.buckets.map((bucket) => bucket.engagedMs)),
+      buildGroupedTrack(
+        buildSparkline(report.buckets.map((bucket) => bucket.engagedMs)),
+      ),
       formatDurationCompact(
         report.buckets.reduce(
           (totalDurationMs, bucket) => totalDurationMs + bucket.engagedMs,
@@ -44,8 +55,8 @@ export function buildRhythmSection(
     ),
     renderRhythmRow(
       "active",
-      buildSparkline(
-        report.buckets.map((bucket) => bucket.directActivityMs),
+      buildGroupedTrack(
+        buildSparkline(report.buckets.map((bucket) => bucket.directActivityMs)),
       ),
       formatDurationCompact(
         report.buckets.reduce(
@@ -57,22 +68,24 @@ export function buildRhythmSection(
       "active",
       options,
     ),
+  ];
+
+  lines.push(
     renderRhythmRow(
       padRight(idleLabel, 6).trimEnd(),
-      buildSparkline(idleValues),
-      formatDurationCompact(
-        idleValues.reduce(
-          (totalDurationMs, idleDurationMs) =>
-            totalDurationMs + idleDurationMs,
-          0,
-        ),
-      ),
+      buildGroupedTrack(buildSparkline(idleValues)),
+      idleTotal,
       "idle",
       options,
     ),
+  );
+
+  lines.push(
     renderRhythmRow(
       "burn",
-      buildSparkline(report.buckets.map((bucket) => bucket.practicalBurn)),
+      buildGroupedTrack(
+        buildSparkline(report.buckets.map((bucket) => bucket.practicalBurn)),
+      ),
       formatCompactInteger(
         report.buckets.reduce(
           (totalBurn, bucket) => totalBurn + bucket.practicalBurn,
@@ -82,28 +95,37 @@ export function buildRhythmSection(
       "burn",
       options,
     ),
-  ];
+  );
+
+  return lines;
+}
+
+function buildGroupedTrack(text: string): string {
+  const groups: string[] = [];
+  for (let i = 0; i < text.length; i += groupSize) {
+    groups.push(text.slice(i, i + groupSize));
+  }
+  return groups.join("│");
 }
 
 function buildHourMarkerLine(report: HourlyReport): string {
-  const markerCharacters = Array.from(
-    { length: report.buckets.length },
-    () => " ",
-  );
+  const markerGroups: string[] = [];
 
-  for (const [index, bucket] of report.buckets.entries()) {
-    if (index % 4 !== 0) {
+  for (let index = 0; index < report.buckets.length; index += groupSize) {
+    const bucket = report.buckets[index];
+    if (!bucket) {
       continue;
     }
 
-    const hourLabel = formatHourOfDay(bucket.start, report.window);
-    markerCharacters[index] = hourLabel[0] ?? " ";
-    if (index + 1 < markerCharacters.length) {
-      markerCharacters[index + 1] = hourLabel[1] ?? " ";
-    }
+    markerGroups.push(
+      padRight(
+        formatHourOfDay(bucket.start, report.window),
+        Math.min(groupSize, report.buckets.length - index),
+      ),
+    );
   }
 
-  return markerCharacters.join("");
+  return markerGroups.join("│");
 }
 
 function renderRhythmRow(
