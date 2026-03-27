@@ -1,0 +1,2 @@
+{"timestamp":"2026-03-25T15:00:00.000Z","type":"session_meta","payload":{"id":"fixture-ignored-session-1","timestamp":"2026-03-25T15:00:00.000Z","cwd":"/tmp/codex-fixtures/other-project","source":"cli"}}
+{"timestamp":"2026-03-25T15:05:00.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":10,"cached_input_tokens":0,"output_tokens":1,"reasoning_output_tokens":0,"total_tokens":11}}}}
