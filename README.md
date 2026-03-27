@@ -248,6 +248,7 @@ If you want to use a token instead:
 1. On npm, go to `Access Tokens`.
 2. Generate a new granular token on the website.
 3. Give it `Read and write` package access.
+4. Make sure it can publish when 2FA is enabled. npm rejected the first workflow run because the token did not satisfy that requirement.
 4. Store it in GitHub as `NPM_TOKEN`.
 
 Official token docs:
@@ -260,6 +261,7 @@ Important:
 - trusted publishing is preferred over long-lived tokens
 - provenance is enabled in `package.json`, but for provenance to be fully useful you should also add the real public GitHub `repository` metadata before first publish
 - since you already added `NPM_TOKEN`, the included GitHub Actions workflow can publish with the token path right now
+- if the workflow fails with `403 Forbidden` and mentions two-factor authentication, replace `NPM_TOKEN` with an automation token or a granular token that can bypass 2FA for publish
 
 ## Before First Publish
 

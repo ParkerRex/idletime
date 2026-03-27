@@ -6,7 +6,7 @@
   "main": "./dist/idletime.js",
   "module": "dist/idletime.js",
   "bin": {
-    "idletime": "./dist/idletime.js"
+    "idletime": "dist/idletime.js"
   },
   "repository": {
     "type": "git",
