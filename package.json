@@ -1,6 +1,6 @@
 {
   "name": "idletime",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Visual CLI for Codex focus, token burn, spikes, and idle time from local session logs.",
   "author": "ParkerRex",
   "main": "./dist/idletime.js",

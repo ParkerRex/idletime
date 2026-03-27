@@ -4,6 +4,15 @@ All notable changes to `idletime` will be documented in this file.
 
 The format is based on Keep a Changelog and this project currently tracks release-ready snapshots manually.
 
+## [0.1.1] - 2026-03-27
+
+### Changed
+
+- Refreshed the CLI dashboard with a full-width `idletime` wordmark band and a warmer yellow/olive terminal palette.
+- Moved the `idletime` top band above the summary metadata and stretched the block pattern to the terminal width.
+- Simplified the `24h Rhythm` lanes into aligned 4-hour groups for faster scanning in both full and share mode.
+- Updated the README screenshot asset to match the current terminal visual design.
+
 ## [0.1.0] - 2026-03-27
 
 ### Added
