@@ -282,7 +282,10 @@ async function runShellCommand(
   commandText: string,
   environment: NodeJS.ProcessEnv,
 ): Promise<string> {
-  const commandOutput = await runCommand(["zsh", "-lc", commandText], environment);
+  const commandOutput = await runCommand(
+    ["/bin/sh", "-lc", commandText],
+    environment,
+  );
   return `${commandOutput.stdout}${commandOutput.stderr}`;
 }
 
