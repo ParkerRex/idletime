@@ -4,6 +4,24 @@ All notable changes to `idletime` will be documented in this file.
 
 The format is based on Keep a Changelog and this project currently tracks release-ready snapshots manually.
 
+## [0.1.3] - 2026-03-27
+
+### Added
+
+- Added a persistent `BEST` header plaque that shows top concurrent agents, top rolling 24-hour raw burn, and top rolling 24-hour agent sum.
+- Added a durable best-metrics ledger under `~/.idletime/` plus an append-only `best-events.ndjson` history file.
+- Added best-effort macOS notifications for genuine new bests and opt-in near-best nudges with a persisted cooldown state file.
+- Added a bundled notification icon asset for the macOS notification path when `terminal-notifier` is available.
+
+### Changed
+
+- `today` and the default `last24h` flow now refresh best metrics before rendering the report.
+- The macOS notification path now prefers `terminal-notifier` with a custom icon and falls back to AppleScript only when needed.
+
+### Fixed
+
+- The all-history record scan now skips malformed legacy Codex session files instead of breaking normal report runs.
+
 ## [0.1.2] - 2026-03-27
 
 ### Fixed

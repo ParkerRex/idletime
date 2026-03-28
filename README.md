@@ -64,6 +64,7 @@ bun run idletime
 
 That shows:
 
+- A gold `BEST` plaque in the header for your top concurrent agents, top 24-hour raw burn, and top agent-sum record
 - A framed trailing-24h dashboard
 - A `24h Rhythm` strip for `focus`, `active`, `quiet` or `idle`, and `burn`
 - `Spike Callouts` for the biggest burn hours
@@ -170,6 +171,20 @@ Once published, that also works as:
 ```bash
 idletime --version
 ```
+
+## Record Tracking
+
+`idletime` now keeps a local personal-best ledger under `~/.idletime/`.
+
+- `bests-v1.json`: durable best values for the header plaque
+- `best-events.ndjson`: append-only new-best history
+- `near-best-notifications-v1.json`: opt-in state for “close to best” nudges
+
+By default:
+
+- the `BEST` plaque is always shown in the normal header
+- genuine new-best events can trigger a local macOS notification
+- near-best nudges are stored but disabled until you opt in by setting `nearBestEnabled` to `true`
 
 ## Validation
 
