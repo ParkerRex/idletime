@@ -71,6 +71,13 @@ export type RenderOptions = {
   terminalWidth: number | null;
 };
 
+export type BestPlaque = {
+  label: string;
+  concurrentAgentsText: string;
+  rawBurnText: string;
+  agentSumText: string;
+};
+
 export type SummaryReport = {
   activityWindow: TimeInterval | null;
   appliedFilters: SessionFilters;

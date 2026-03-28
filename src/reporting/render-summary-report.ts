@@ -4,6 +4,7 @@ import {
   formatCompactInteger,
   formatDurationCompact,
   formatDurationClock,
+  formatHourOfDay,
   formatDurationHours,
   formatInteger,
   formatPercentage,
@@ -21,7 +22,7 @@ import {
 } from "./render-rhythm-section.ts";
 import { renderPanel, renderSectionTitle } from "./render-shared-sections.ts";
 import { dim, measureVisibleTextWidth, paint } from "./render-theme.ts";
-import type { HourlyReport, RenderOptions, SummaryReport } from "./types.ts";
+import type { BestPlaque, HourlyReport, RenderOptions, SummaryReport } from "./types.ts";
 
 const summaryBarWidth = 18;
 
@@ -29,27 +30,25 @@ export function renderSummaryReport(
   report: SummaryReport,
   options: RenderOptions,
   hourlyReport?: HourlyReport,
+  bestPlaque: BestPlaque | null = null,
 ): string {
   return options.shareMode
-    ? renderShareSummaryReport(report, options, hourlyReport)
-    : renderFullSummaryReport(report, options, hourlyReport);
+    ? renderShareSummaryReport(report, options, hourlyReport, bestPlaque)
+    : renderFullSummaryReport(report, options, hourlyReport, bestPlaque);
 }
 
 function renderFullSummaryReport(
   report: SummaryReport,
   options: RenderOptions,
   hourlyReport?: HourlyReport,
+  bestPlaque: BestPlaque | null = null,
 ): string {
   const lines: string[] = [];
   const requestedMetrics = report.metrics;
   const actualComparisonMetrics = report.comparisonMetrics;
   const windowDurationMs =
     report.window.end.getTime() - report.window.start.getTime();
-  const headerLines = [
-    formatTimeRange(report.window.start, report.window.end, report.window),
-    `${report.sessionCounts.total} sessions · ${formatDurationHours(requestedMetrics.strictEngagementMs)} focused · ${formatCompactInteger(report.tokenTotals.practicalBurn)} tokens`,
-    ...formatAppliedFilters(report).map((filter) => `filter ${filter}`),
-  ];
+  const headerLines = buildSummaryHeaderLines(report, hourlyReport);
 
   const panelLines = renderPanel(
     `idletime • ${report.window.label}`,
@@ -59,7 +58,7 @@ function renderFullSummaryReport(
   const panelWidth = measureVisibleTextWidth(panelLines[0] ?? "");
   const logoSectionWidth = resolveLogoSectionWidth(panelWidth, options);
 
-  lines.push(...buildLogoSection(logoSectionWidth, options));
+  lines.push(...buildLogoSection(logoSectionWidth, options, bestPlaque));
   lines.push("");
   lines.push(...panelLines);
   if (hourlyReport) {
@@ -316,13 +315,10 @@ function renderShareSummaryReport(
   report: SummaryReport,
   options: RenderOptions,
   hourlyReport?: HourlyReport,
+  bestPlaque: BestPlaque | null = null,
 ): string {
   const lines: string[] = [];
-  const headerLines = [
-    formatTimeRange(report.window.start, report.window.end, report.window),
-    `${report.sessionCounts.total} sessions · ${formatDurationHours(report.metrics.strictEngagementMs)} focused · ${formatCompactInteger(report.tokenTotals.practicalBurn)} tokens`,
-    ...formatAppliedFilters(report).map((filter) => `filter ${filter}`),
-  ];
+  const headerLines = buildSummaryHeaderLines(report, hourlyReport);
 
   const panelLines = renderPanel(
     `idletime • ${report.window.label}`,
@@ -332,7 +328,7 @@ function renderShareSummaryReport(
   const panelWidth = measureVisibleTextWidth(panelLines[0] ?? "");
   const logoSectionWidth = resolveLogoSectionWidth(panelWidth, options);
 
-  lines.push(...buildLogoSection(logoSectionWidth, options));
+  lines.push(...buildLogoSection(logoSectionWidth, options, bestPlaque));
   lines.push("");
   lines.push(...panelLines);
 
@@ -442,6 +438,171 @@ function formatAppliedFilters(report: SummaryReport): string[] {
   }
 
   return appliedFilters;
+}
+
+function buildSummaryHeaderLines(
+  report: SummaryReport,
+  hourlyReport?: HourlyReport,
+): string[] {
+  if (!hourlyReport) {
+    return [
+      formatTimeRange(report.window.start, report.window.end, report.window),
+      `${report.sessionCounts.total} sessions · ${formatDurationHours(report.metrics.strictEngagementMs)} focused · ${formatCompactInteger(report.tokenTotals.practicalBurn)} tokens`,
+      ...formatAppliedFilters(report).map((filter) => `filter ${filter}`),
+    ];
+  }
+
+  return [
+    buildPostureLine(report, hourlyReport),
+    buildBiggestStoryLine(report, hourlyReport),
+    buildSupportFactsLine(report),
+    ...formatAppliedFilters(report).map((filter) => `filter ${filter}`),
+  ];
+}
+
+function buildPostureLine(
+  report: SummaryReport,
+  hourlyReport: HourlyReport,
+): string {
+  const directActivityMs = Math.max(report.metrics.directActivityMs, 1);
+  const focusRatio = report.metrics.strictEngagementMs / directActivityMs;
+  const agentCoverageRatio = report.metrics.agentCoverageMs / directActivityMs;
+  const quietRatio = sumQuietMs(hourlyReport) /
+    Math.max(1, report.window.end.getTime() - report.window.start.getTime());
+
+  const posture =
+    quietRatio >= 0.45
+      ? "Fragmented day"
+      : agentCoverageRatio >= 0.75 && focusRatio < 0.65
+        ? "Mostly orchestrating"
+        : focusRatio >= 0.8
+          ? "Mostly in the loop"
+          : report.metrics.peakConcurrentAgents >= 6
+            ? "Heavy agent day"
+            : "Balanced day";
+
+  return `${posture}: ${formatDurationHours(report.metrics.strictEngagementMs)} focused, ${formatDurationHours(report.metrics.agentCoverageMs)} agent live`;
+}
+
+function buildBiggestStoryLine(
+  report: SummaryReport,
+  hourlyReport: HourlyReport,
+): string {
+  const longestQuietRun = findLongestQuietRun(hourlyReport);
+  const peakBurnBucket = hourlyReport.buckets.reduce(
+    (currentPeak, bucket) =>
+      bucket.practicalBurn > currentPeak.practicalBurn ? bucket : currentPeak,
+    hourlyReport.buckets[0]!,
+  );
+  const quietPhrase = longestQuietRun.durationMs >= 2 * 3_600_000
+    ? `long quiet stretch ${describeDayPeriod(longestQuietRun.start, report)}`
+    : "steady rhythm overall";
+
+  return `Biggest story: ${quietPhrase}, big burn ${describeDayPeriod(peakBurnBucket.start, report)}`;
+}
+
+function buildSupportFactsLine(report: SummaryReport): string {
+  return `${report.sessionCounts.direct} direct / ${report.sessionCounts.subagent} subagent • ${report.metrics.peakConcurrentAgents} peak • ${formatCompactInteger(report.tokenTotals.practicalBurn)} burn`;
+}
+
+function sumQuietMs(hourlyReport: HourlyReport): number {
+  return hourlyReport.buckets.reduce(
+    (totalDurationMs, bucket) =>
+      totalDurationMs + Math.max(
+        0,
+        bucket.end.getTime() - bucket.start.getTime() - bucket.directActivityMs -
+          bucket.agentOnlyMs,
+      ),
+    0,
+  );
+}
+
+function findLongestQuietRun(hourlyReport: HourlyReport): {
+  durationMs: number;
+  start: Date;
+} {
+  let longestQuietRun = {
+    durationMs: 0,
+    start: hourlyReport.buckets[0]?.start ?? new Date(0),
+  };
+  let currentStart: Date | null = null;
+  let currentDurationMs = 0;
+
+  for (const bucket of hourlyReport.buckets) {
+    const quietMs = Math.max(
+      0,
+      bucket.end.getTime() - bucket.start.getTime() - bucket.directActivityMs -
+        bucket.agentOnlyMs,
+    );
+    const isQuietBucket = quietMs >= 30 * 60_000;
+
+    if (isQuietBucket) {
+      currentStart ??= bucket.start;
+      currentDurationMs += quietMs;
+      continue;
+    }
+
+    if (currentStart && currentDurationMs > longestQuietRun.durationMs) {
+      longestQuietRun = {
+        durationMs: currentDurationMs,
+        start: currentStart,
+      };
+    }
+
+    currentStart = null;
+    currentDurationMs = 0;
+  }
+
+  if (currentStart && currentDurationMs > longestQuietRun.durationMs) {
+    longestQuietRun = {
+      durationMs: currentDurationMs,
+      start: currentStart,
+    };
+  }
+
+  if (longestQuietRun.durationMs > 0) {
+    return longestQuietRun;
+  }
+
+  const quietestBucket = hourlyReport.buckets.reduce(
+    (currentQuietest, bucket) => {
+      const quietMs = Math.max(
+        0,
+        bucket.end.getTime() - bucket.start.getTime() - bucket.directActivityMs -
+          bucket.agentOnlyMs,
+      );
+      return quietMs > currentQuietest.durationMs
+        ? { durationMs: quietMs, start: bucket.start }
+        : currentQuietest;
+    },
+    longestQuietRun,
+  );
+
+  return quietestBucket;
+}
+
+function describeDayPeriod(
+  timestamp: Date,
+  report: SummaryReport,
+): string {
+  const hourOfDay = Number.parseInt(
+    formatHourOfDay(timestamp, report.window),
+    10,
+  );
+
+  if (hourOfDay >= 21 || hourOfDay < 5) {
+    return "overnight";
+  }
+
+  if (hourOfDay < 12) {
+    return "this morning";
+  }
+
+  if (hourOfDay < 17) {
+    return "this afternoon";
+  }
+
+  return "this evening";
 }
 
 function formatDurationLabel(durationMs: number): string {

@@ -13,16 +13,16 @@ type ThemeRole =
   | "value";
 
 const roleStyles: Record<ThemeRole, string> = {
-  focus: "1;38;2;236;239;148",
-  active: "1;38;2;208;219;96",
-  agent: "1;38;2;166;182;77",
-  idle: "1;38;2;138;150;66",
-  burn: "1;38;2;228;209;92",
-  raw: "1;38;2;188;172;80",
-  frame: "1;38;2;149;158;56",
-  heading: "1;38;2;249;246;212",
-  muted: "38;2;142;145;96",
-  value: "1;38;2;242;236;179",
+  focus: "1;38;2;190;184;86",
+  active: "1;38;2;157;168;60",
+  agent: "1;38;2;124;138;55",
+  idle: "1;38;2;105;118;50",
+  burn: "1;38;2;190;161;55",
+  raw: "1;38;2;153;132;52",
+  frame: "1;38;2;118;126;50",
+  heading: "1;38;2;201;190;102",
+  muted: "38;2;111;115;78",
+  value: "1;38;2;178;161;68",
 };
 
 export function createRenderOptions(shareMode: boolean): RenderOptions {

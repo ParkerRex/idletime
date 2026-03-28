@@ -2,11 +2,14 @@ import { describe, expect, test } from "bun:test";
 import type { ParsedSession, TokenPoint, TokenUsage } from "../src/codex-session-log/types.ts";
 import { buildHourlyReport } from "../src/reporting/build-hourly-report.ts";
 import { buildSummaryReport } from "../src/reporting/build-summary-report.ts";
+import { buildBestPlaque } from "../src/reporting/render-best-plaque.ts";
 import { buildLogoSection } from "../src/reporting/render-logo-section.ts";
 import { buildRhythmSection } from "../src/reporting/render-rhythm-section.ts";
+import { renderSummaryReport } from "../src/reporting/render-summary-report.ts";
 import type { HourlyBucket, HourlyReport } from "../src/reporting/types.ts";
 import { parseDurationToMs } from "../src/report-window/parse-duration.ts";
 import { parseWakeWindow } from "../src/reporting/wake-window.ts";
+import { bestMetricsLedgerVersion } from "../src/best-metrics/types.ts";
 
 describe("reporting", () => {
   test("builds summary metrics, wake idle, and grouped totals", () => {
@@ -195,6 +198,58 @@ describe("reporting", () => {
     expect(logoLines[0]).toMatch(/[░▒▓█]{6,}$/);
   });
 
+  test("renders the BEST plaque inside the logo band at wide and narrow widths", () => {
+    const bestPlaque = buildBestPlaque({
+      version: bestMetricsLedgerVersion,
+      initializedAt: new Date("2026-03-27T20:00:00.000Z"),
+      lastScannedAt: new Date("2026-03-27T21:00:00.000Z"),
+      bestConcurrentAgents: {
+        value: 98,
+        observedAt: new Date("2026-03-27T18:00:00.000Z"),
+        windowStart: new Date("2026-03-27T18:00:00.000Z"),
+        windowEnd: new Date("2026-03-27T18:15:00.000Z"),
+      },
+      best24hRawBurn: {
+        value: 1_800_000_000,
+        observedAt: new Date("2026-03-27T18:00:00.000Z"),
+        windowStart: new Date("2026-03-26T18:00:00.000Z"),
+        windowEnd: new Date("2026-03-27T18:00:00.000Z"),
+      },
+      best24hAgentSumMs: {
+        value: 17 * 3_600_000,
+        observedAt: new Date("2026-03-27T18:00:00.000Z"),
+        windowStart: new Date("2026-03-26T18:00:00.000Z"),
+        windowEnd: new Date("2026-03-27T18:00:00.000Z"),
+      },
+    });
+
+    const wideLogoLines = buildLogoSection(
+      72,
+      {
+        colorEnabled: false,
+        shareMode: false,
+        terminalWidth: 72,
+      },
+      bestPlaque,
+    );
+    const narrowLogoLines = buildLogoSection(
+      60,
+      {
+        colorEnabled: false,
+        shareMode: false,
+        terminalWidth: 60,
+      },
+      bestPlaque,
+    );
+
+    expect(wideLogoLines[0]).toContain("BEST");
+    expect(wideLogoLines[1]).toContain("98 concurrent agents");
+    expect(wideLogoLines[2]).toContain("1.8B 24hr raw burn");
+    expect(narrowLogoLines[0]).toContain("BEST");
+    expect(narrowLogoLines[1]).toContain("98 concurrent");
+    expect(narrowLogoLines[2]).toContain("1.8B raw burn");
+  });
+
   test("renders 24h rhythm with aligned hour groups and single-line lanes", () => {
     const rhythmLines = buildRhythmSection(createRhythmReportFixture(), {
       colorEnabled: false,
@@ -206,6 +261,94 @@ describe("reporting", () => {
     expect(rhythmLines.filter((line) => line.includes("quiet")).length).toBe(1);
     expect(rhythmLines.find((line) => line.includes("focus"))).toContain("│");
     expect(rhythmLines.find((line) => line.includes("burn"))).toContain("│");
+  });
+
+  test("renders a narrative header above the rhythm view when hourly data exists", () => {
+    const reportWindow = {
+      label: "synthetic-day",
+      start: new Date("2026-03-26T08:00:00-04:00"),
+      end: new Date("2026-03-26T22:00:00-04:00"),
+      timeZone: "America/New_York",
+    };
+    const sessions = [
+      createSession({
+        sessionId: "direct-main",
+        kind: "direct",
+        eventTimes: [
+          "2026-03-26T09:00:00-04:00",
+          "2026-03-26T09:05:00-04:00",
+          "2026-03-26T09:25:00-04:00",
+        ],
+        userMessageTimes: [
+          "2026-03-26T09:00:00-04:00",
+          "2026-03-26T09:25:00-04:00",
+        ],
+        tokenPoints: [
+          createTokenPoint(
+            "2026-03-26T09:05:00-04:00",
+            createUsage(100, 0, 0, 100),
+          ),
+        ],
+        usage: createUsage(220, 0, 0, 220),
+        model: "gpt-5.4",
+        reasoningEffort: "xhigh",
+      }),
+      createSession({
+        sessionId: "subagent-a",
+        kind: "subagent",
+        eventTimes: [
+          "2026-03-26T09:10:00-04:00",
+          "2026-03-26T09:40:00-04:00",
+        ],
+        userMessageTimes: [],
+        tokenPoints: [
+          createTokenPoint(
+            "2026-03-26T09:45:00-04:00",
+            createUsage(50, 0, 0, 50),
+          ),
+        ],
+        usage: createUsage(80, 0, 0, 80),
+        model: "gpt-5.4-mini",
+        reasoningEffort: "high",
+      }),
+    ];
+    const summaryReport = buildSummaryReport(sessions, {
+      filters: {
+        workspaceOnlyPrefix: null,
+        sessionKind: null,
+        model: null,
+        reasoningEffort: null,
+      },
+      groupBy: [],
+      idleCutoffMs: parseDurationToMs("15m"),
+      wakeWindow: null,
+      window: reportWindow,
+    });
+    const hourlyReport = buildHourlyReport(sessions, {
+      filters: {
+        workspaceOnlyPrefix: null,
+        sessionKind: null,
+        model: null,
+        reasoningEffort: null,
+      },
+      idleCutoffMs: parseDurationToMs("15m"),
+      wakeWindow: null,
+      window: reportWindow,
+    });
+
+    const renderedReport = renderSummaryReport(
+      summaryReport,
+      {
+        colorEnabled: false,
+        shareMode: false,
+        terminalWidth: 80,
+      },
+      hourlyReport,
+    );
+
+    expect(renderedReport).toContain("focused, 0.5h agent live");
+    expect(renderedReport).toContain("Biggest story:");
+    expect(renderedReport).toContain("1 direct / 1 subagent");
   });
 });
 

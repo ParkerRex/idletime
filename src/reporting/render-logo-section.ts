@@ -1,9 +1,12 @@
 import { padRight } from "./report-formatting.ts";
+import { buildBestPlaqueRows } from "./render-best-plaque.ts";
 import { paintAnsi } from "./render-theme.ts";
-import type { RenderOptions } from "./types.ts";
+import type { BestPlaque, RenderOptions } from "./types.ts";
 
 const baseBackgroundStyle = "48;2;12;15;8";
-const wordmarkStyle = `${baseBackgroundStyle};1;38;2;247;245;204`;
+const plaqueInsetColumns = 3;
+const plaqueTextStyle = "1;38;2;244;235;164";
+const wordmarkStyle = `${baseBackgroundStyle};1;38;2;210;198;108`;
 const wordmarkLines = [
   "       ▄▄ ▄▄",
   "▀▀     ██ ██        ██   ▀▀",
@@ -20,25 +23,37 @@ type RgbColor = {
 
 const patternColors: RgbColor[] = [
   { red: 20, green: 24, blue: 10 },
-  { red: 48, green: 58, blue: 18 },
-  { red: 86, green: 96, blue: 24 },
-  { red: 128, green: 138, blue: 30 },
-  { red: 176, green: 188, blue: 40 },
-  { red: 220, green: 228, blue: 78 },
+  { red: 42, green: 50, blue: 16 },
+  { red: 71, green: 81, blue: 24 },
+  { red: 101, green: 112, blue: 31 },
+  { red: 136, green: 145, blue: 39 },
+  { red: 177, green: 169, blue: 58 },
 ];
 const monochromePatternCharacters = ["░", "░", "▒", "▓", "█"];
 
 export function buildLogoSection(
   requestedWidth: number,
   options: RenderOptions,
+  bestPlaque: BestPlaque | null = null,
 ): string[] {
   const wordmarkWidth = Math.max(...wordmarkLines.map((line) => line.length));
   const sectionWidth = Math.max(requestedWidth, wordmarkWidth);
   const patternWidth = Math.max(0, sectionWidth - wordmarkWidth);
+  const plaqueRows = bestPlaque
+    ? buildBestPlaqueRows(
+        bestPlaque,
+        Math.max(0, patternWidth - plaqueInsetColumns),
+      )
+    : null;
 
   return wordmarkLines.map((line, rowIndex) => {
     const paddedWordmark = padRight(line, wordmarkWidth);
-    const patternTail = buildPatternTail(patternWidth, rowIndex, options);
+    const patternTail = buildPatternTail(
+      patternWidth,
+      rowIndex,
+      options,
+      plaqueRows?.[rowIndex] ?? "",
+    );
 
     return `${paintAnsi(paddedWordmark, wordmarkStyle, options)}${patternTail}`;
   });
@@ -55,41 +70,61 @@ function buildPatternTail(
   width: number,
   rowIndex: number,
   options: RenderOptions,
+  plaqueRowText: string,
 ): string {
   if (!options.colorEnabled) {
-    return buildMonochromePatternTail(width, rowIndex);
+    return buildMonochromePatternTail(width, rowIndex, plaqueRowText);
   }
 
+  const overlayCharacters = createOverlayCharacters(width, plaqueRowText);
+  const cellStyles = Array.from({ length: width }, (_, columnIndex) =>
+    getPatternCellStyle(getPatternIntensity(width, rowIndex, columnIndex))
+  );
   let patternTail = "";
   let currentStyle = "";
-  let currentSegmentWidth = 0;
+  let currentSegment = "";
 
   for (let columnIndex = 0; columnIndex < width; columnIndex += 1) {
-    const style = getPatternCellStyle(getPatternIntensity(width, rowIndex, columnIndex));
+    const overlayCharacter = overlayCharacters[columnIndex]!;
+    const style =
+      overlayCharacter === null
+        ? cellStyles[columnIndex]!
+        : `${cellStyles[columnIndex]!};${plaqueTextStyle}`;
     if (style === currentStyle) {
-      currentSegmentWidth += 1;
+      currentSegment += overlayCharacter ?? " ";
       continue;
     }
 
-    if (currentSegmentWidth > 0) {
-      patternTail += paintAnsi(" ".repeat(currentSegmentWidth), currentStyle, options);
+    if (currentSegment.length > 0) {
+      patternTail += paintAnsi(currentSegment, currentStyle, options);
     }
 
     currentStyle = style;
-    currentSegmentWidth = 1;
+    currentSegment = overlayCharacter ?? " ";
   }
 
-  if (currentSegmentWidth > 0) {
-    patternTail += paintAnsi(" ".repeat(currentSegmentWidth), currentStyle, options);
+  if (currentSegment.length > 0) {
+    patternTail += paintAnsi(currentSegment, currentStyle, options);
   }
 
   return patternTail;
 }
 
-function buildMonochromePatternTail(width: number, rowIndex: number): string {
+function buildMonochromePatternTail(
+  width: number,
+  rowIndex: number,
+  plaqueRowText: string,
+): string {
+  const overlayCharacters = createOverlayCharacters(width, plaqueRowText);
   let patternTail = "";
 
   for (let columnIndex = 0; columnIndex < width; columnIndex += 1) {
+    const overlayCharacter = overlayCharacters[columnIndex]!;
+    if (overlayCharacter !== null) {
+      patternTail += overlayCharacter;
+      continue;
+    }
+
     const intensity = getPatternIntensity(width, rowIndex, columnIndex);
     const characterIndex = Math.min(
       monochromePatternCharacters.length - 1,
@@ -99,6 +134,25 @@ function buildMonochromePatternTail(width: number, rowIndex: number): string {
   }
 
   return patternTail;
+}
+
+function createOverlayCharacters(
+  width: number,
+  plaqueRowText: string,
+): Array<string | null> {
+  const overlayCharacters: Array<string | null> = Array.from(
+    { length: width },
+    () => null,
+  );
+  for (
+    let index = 0;
+    index < plaqueRowText.length && plaqueInsetColumns + index < width;
+    index += 1
+  ) {
+    overlayCharacters[plaqueInsetColumns + index] = plaqueRowText[index]!;
+  }
+
+  return overlayCharacters;
 }
 
 function getPatternIntensity(
