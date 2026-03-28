@@ -12,6 +12,7 @@ import {
   resolvePrimaryModel,
   resolvePrimaryReasoningEffort,
 } from "./extract-turn-attribution.ts";
+import { extractTaskWindows } from "./task-windows.ts";
 import { extractUserMessageTimestamps } from "./extract-user-message-timestamps.ts";
 import type { ParsedSession } from "./types.ts";
 
@@ -47,19 +48,27 @@ export async function parseCodexSession(
   const userMessageTimestamps = extractUserMessageTimestamps(records);
   const { turnAttributions, agentSpawnRequests } =
     extractTurnAttribution(records);
+  const sessionId = readString(
+    sessionMetaPayload,
+    "id",
+    "session_meta.payload",
+  );
+  const cwd = readString(sessionMetaPayload, "cwd", "session_meta.payload");
+  const forkedFromSessionId = readOptionalString(
+    sessionMetaPayload,
+    "forked_from_id",
+  );
+  const kind = classifySessionKind(sessionMetaPayload.source);
   const eventTimestamps = records
     .filter((record) => record.type !== "session_meta")
     .map((record) => record.timestamp);
 
   return {
-    sessionId: readString(sessionMetaPayload, "id", "session_meta.payload"),
+    sessionId,
     sourceFilePath,
-    cwd: readString(sessionMetaPayload, "cwd", "session_meta.payload"),
-    kind: classifySessionKind(sessionMetaPayload.source),
-    forkedFromSessionId: readOptionalString(
-      sessionMetaPayload,
-      "forked_from_id",
-    ),
+    cwd,
+    kind,
+    forkedFromSessionId,
     firstTimestamp: firstRecord.timestamp,
     lastTimestamp: lastRecord.timestamp,
     eventTimestamps:
@@ -70,6 +79,12 @@ export async function parseCodexSession(
     userMessageTimestamps,
     turnAttributions,
     agentSpawnRequests,
+    taskWindows: extractTaskWindows(records, {
+      cwd,
+      parentSessionId: forkedFromSessionId,
+      sessionId,
+      sessionKind: kind,
+    }),
     primaryModel: resolvePrimaryModel(turnAttributions),
     primaryReasoningEffort:
       resolvePrimaryReasoningEffort(turnAttributions),

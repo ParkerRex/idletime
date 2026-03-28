@@ -1,12 +1,38 @@
 import { describe, expect, test } from "bun:test";
-import type { ParsedSession, TokenPoint, TokenUsage } from "../src/codex-session-log/types.ts";
+import type {
+  ParsedSession,
+  ProtocolTaskWindow,
+  TokenPoint,
+  TokenUsage,
+} from "../src/codex-session-log/types.ts";
+import { buildLiveReport } from "../src/reporting/build-live-report.ts";
 import { buildHourlyReport } from "../src/reporting/build-hourly-report.ts";
 import { buildSummaryReport } from "../src/reporting/build-summary-report.ts";
+import {
+  serializeHourlySnapshot,
+  type SerializedHourlySnapshotV1,
+} from "../src/reporting/serialize-hourly-report.ts";
+import {
+  serializeLiveSnapshot,
+  type SerializedLiveSnapshotV1,
+} from "../src/reporting/serialize-live-report.ts";
+import {
+  serializeSummarySnapshot,
+  type SerializedSummarySnapshotV1,
+} from "../src/reporting/serialize-summary-report.ts";
 import { buildBestPlaque } from "../src/reporting/render-best-plaque.ts";
+import { buildAgentSection } from "../src/reporting/render-agent-section.ts";
 import { buildLogoSection } from "../src/reporting/render-logo-section.ts";
+import { renderLiveReport } from "../src/reporting/render-live-report.ts";
 import { buildRhythmSection } from "../src/reporting/render-rhythm-section.ts";
 import { renderSummaryReport } from "../src/reporting/render-summary-report.ts";
-import type { HourlyBucket, HourlyReport } from "../src/reporting/types.ts";
+import type {
+  HourlyBucket,
+  HourlyReport,
+  JsonHourlySnapshotCommand,
+  JsonLiveSnapshotCommand,
+  JsonSummarySnapshotCommand,
+} from "../src/reporting/types.ts";
 import { parseDurationToMs } from "../src/report-window/parse-duration.ts";
 import { parseWakeWindow } from "../src/reporting/wake-window.ts";
 import { bestMetricsLedgerVersion } from "../src/best-metrics/types.ts";
@@ -257,10 +283,23 @@ describe("reporting", () => {
       terminalWidth: 80,
     });
 
-    expect(rhythmLines[2]).toBe("  hours  08  │12  │16  │20  │00  │04  ");
+    expect(rhythmLines[2]).toBe("  time   8am │12pm│4pm │8pm │12am│4am ");
     expect(rhythmLines.filter((line) => line.includes("quiet")).length).toBe(1);
     expect(rhythmLines.find((line) => line.includes("focus"))).toContain("│");
     expect(rhythmLines.find((line) => line.includes("burn"))).toContain("│");
+  });
+
+  test("renders a dedicated agents section with task-window units", () => {
+    const agentLines = buildAgentSection(createRhythmReportFixture(), {
+      colorEnabled: false,
+      shareMode: false,
+      terminalWidth: 80,
+    });
+
+    expect(agentLines[0]).toContain("Agents");
+    expect(agentLines[2]).toContain("8am");
+    expect(agentLines[3]).toContain("peak");
+    expect(agentLines[4]).toContain("task windows");
   });
 
   test("renders a narrative header above the rhythm view when hourly data exists", () => {
@@ -348,11 +387,328 @@ describe("reporting", () => {
 
     expect(renderedReport).toContain("focused, 0.5h agent live");
     expect(renderedReport).toContain("Biggest story:");
+    expect(renderedReport).toContain("Agents");
     expect(renderedReport).toContain("1 direct / 1 subagent");
+  });
+
+  test("builds and renders the live scoreboard from task windows", () => {
+    const observedAt = new Date("2026-03-26T09:55:00-04:00");
+    const liveReport = buildLiveReport(
+      [
+        createSession({
+          sessionId: "direct-main",
+          kind: "direct",
+          eventTimes: [
+            "2026-03-26T09:40:00-04:00",
+            "2026-03-26T09:45:00-04:00",
+            "2026-03-26T09:55:00-04:00",
+          ],
+          userMessageTimes: ["2026-03-26T09:40:00-04:00"],
+          tokenPoints: [],
+          usage: createUsage(0, 0, 0, 0),
+          model: "gpt-5.4",
+          reasoningEffort: "high",
+          taskWindows: [
+            createTaskWindow({
+              completedAt: null,
+              lastActivityAt: "2026-03-26T09:55:00-04:00",
+              parentSessionId: null,
+              sessionId: "direct-main",
+              startedAt: "2026-03-26T09:40:00-04:00",
+              turnId: "turn-direct",
+              sessionKind: "direct",
+            }),
+          ],
+        }),
+        createSession({
+          sessionId: "subagent-running",
+          kind: "subagent",
+          cwd: "/tmp/codex-fixtures/agent-runner",
+          eventTimes: ["2026-03-26T09:42:00-04:00"],
+          userMessageTimes: [],
+          tokenPoints: [],
+          usage: createUsage(0, 0, 0, 0),
+          model: "gpt-5.4-mini",
+          reasoningEffort: "high",
+          taskWindows: [
+            createTaskWindow({
+              completedAt: null,
+              cwd: "/tmp/codex-fixtures/agent-runner",
+              lastActivityAt: "2026-03-26T09:54:00-04:00",
+              parentSessionId: "direct-main",
+              sessionId: "subagent-running",
+              startedAt: "2026-03-26T09:42:00-04:00",
+              turnId: "turn-running",
+            }),
+          ],
+        }),
+        createSession({
+          sessionId: "subagent-done",
+          kind: "subagent",
+          eventTimes: ["2026-03-26T09:43:00-04:00"],
+          userMessageTimes: [],
+          tokenPoints: [],
+          usage: createUsage(0, 0, 0, 0),
+          model: "gpt-5.4-mini",
+          reasoningEffort: "high",
+          taskWindows: [
+            createTaskWindow({
+              completedAt: "2026-03-26T09:50:00-04:00",
+              lastActivityAt: "2026-03-26T09:50:00-04:00",
+              parentSessionId: "direct-main",
+              sessionId: "subagent-done",
+              startedAt: "2026-03-26T09:43:00-04:00",
+              turnId: "turn-done",
+            }),
+          ],
+        }),
+        createSession({
+          sessionId: "direct-waiting",
+          kind: "direct",
+          cwd: "/tmp/codex-fixtures/reply-needed",
+          eventTimes: [
+            "2026-03-26T09:44:00-04:00",
+            "2026-03-26T09:53:00-04:00",
+          ],
+          userMessageTimes: ["2026-03-26T09:44:00-04:00"],
+          tokenPoints: [],
+          usage: createUsage(0, 0, 0, 0),
+          model: "gpt-5.4",
+          reasoningEffort: "high",
+          taskWindows: [
+            createTaskWindow({
+              completedAt: "2026-03-26T09:53:00-04:00",
+              cwd: "/tmp/codex-fixtures/reply-needed",
+              lastActivityAt: "2026-03-26T09:53:00-04:00",
+              parentSessionId: null,
+              sessionId: "direct-waiting",
+              startedAt: "2026-03-26T09:44:00-04:00",
+              turnId: "turn-waiting",
+              sessionKind: "direct",
+            }),
+          ],
+        }),
+      ],
+      {
+        filters: {
+          workspaceOnlyPrefix: null,
+          sessionKind: null,
+          model: null,
+          reasoningEffort: null,
+        },
+        observedAt,
+      },
+    );
+
+    const renderedLiveReport = renderLiveReport(liveReport, {
+      colorEnabled: false,
+      shareMode: false,
+      terminalWidth: 80,
+    });
+
+    expect(liveReport.waitingOnUserCount).toBe(1);
+    expect(liveReport.waitingOnUserLocations).toEqual([
+      {
+        cwd: "/tmp/codex-fixtures/reply-needed",
+        waitingCount: 1,
+      },
+    ]);
+    expect(liveReport.waitingThreads).toEqual([
+      expect.objectContaining({
+        cwd: "/tmp/codex-fixtures/reply-needed",
+        sessionId: "direct-waiting",
+      }),
+    ]);
+    expect(liveReport.runningCount).toBe(2);
+    expect(liveReport.runningLocations).toEqual([
+      {
+        cwd: "/tmp/codex-fixtures/agent-runner",
+        runningCount: 1,
+      },
+      {
+        cwd: "/tmp/codex-fixtures/demo-workspace",
+        runningCount: 1,
+      },
+    ]);
+    expect(liveReport.doneRecentCount).toBe(2);
+    expect(liveReport.doneThisTurnCount).toBe(1);
+    expect(liveReport.peakTodayCount).toBe(4);
+    expect(liveReport.scope).toBe("global");
+    expect(renderedLiveReport).toContain("idletime live");
+    expect(renderedLiveReport).toContain("scope global");
+    expect(renderedLiveReport).toContain("all sessions");
+    expect(renderedLiveReport).toContain("waiting on you");
+    expect(renderedLiveReport).toContain("running");
+    expect(renderedLiveReport).toContain("running at");
+    expect(renderedLiveReport).toContain("waiting at");
+    expect(renderedLiveReport).toContain("top waiting");
+    expect(renderedLiveReport).toContain("reply-needed");
+    expect(renderedLiveReport).toContain("waiting");
+    expect(renderedLiveReport).toContain("reply-needed");
+    expect(renderedLiveReport).toContain("agent-runner");
+    expect(renderedLiveReport).toContain("this turn");
+    expect(renderedLiveReport).toContain("today peak");
+    expect(renderedLiveReport.split("\n")[0]?.length).toBeLessThan(80);
+  });
+
+  test("serializes a last24h snapshot with ISO timestamps and exact values", () => {
+    const fixture = createSnapshotSerializationFixture();
+    const serializedSnapshot = serializeSummarySnapshot({
+      command: fixture.summaryCommand,
+      generatedAt: fixture.generatedAt,
+      hourlyReport: fixture.hourlyReport,
+      mode: "last24h",
+      summaryReport: fixture.summaryReport,
+    });
+    const snapshot = JSON.parse(serializedSnapshot) as SerializedSummarySnapshotV1;
+
+    expect(serializedSnapshot.endsWith("\n")).toBe(true);
+    expect(snapshot.schemaVersion).toBe(1);
+    expect(snapshot.mode).toBe("last24h");
+    expect(snapshot.generatedAt).toBe(fixture.generatedAt.toISOString());
+    expect(snapshot.command).toEqual(fixture.summaryCommand);
+    expect(snapshot.summaryReport.window.start).toBe(
+      fixture.summaryReport.window.start.toISOString(),
+    );
+    expect(snapshot.summaryReport.activityWindow?.start).toBe(
+      fixture.summaryReport.activityWindow?.start.toISOString(),
+    );
+    expect(snapshot.summaryReport.metrics.strictEngagementBlocks[0]).toEqual({
+      start: fixture.summaryReport.metrics.strictEngagementBlocks[0]!.start.toISOString(),
+      end: fixture.summaryReport.metrics.strictEngagementBlocks[0]!.end.toISOString(),
+    });
+    expect(snapshot.summaryReport.metrics.strictEngagementMs).toBe(
+      fixture.summaryReport.metrics.strictEngagementMs,
+    );
+    expect(snapshot.summaryReport.wakeSummary?.wakeDurationMs).toBe(
+      fixture.summaryReport.wakeSummary?.wakeDurationMs,
+    );
+    expect(snapshot.summaryReport.groupBreakdowns[0]?.rows[0]?.practicalBurn).toBe(
+      fixture.summaryReport.groupBreakdowns[0]?.rows[0]?.practicalBurn,
+    );
+    expect(snapshot.hourlyReport?.buckets[0]?.start).toBe(
+      fixture.hourlyReport.buckets[0]?.start.toISOString(),
+    );
+    expect(snapshot.hourlyReport?.buckets[0]?.practicalBurn).toBe(
+      fixture.hourlyReport.buckets[0]?.practicalBurn,
+    );
+    expect(snapshot.hourlyReport?.maxValues.practicalBurn).toBe(
+      fixture.hourlyReport.maxValues.practicalBurn,
+    );
+  });
+
+  test("serializes a today snapshot with an explicit null hourly report", () => {
+    const fixture = createSnapshotSerializationFixture();
+    const serializedSnapshot = serializeSummarySnapshot({
+      command: fixture.summaryCommand,
+      generatedAt: fixture.generatedAt,
+      hourlyReport: null,
+      mode: "today",
+      summaryReport: fixture.summaryReport,
+    });
+    const snapshot = JSON.parse(serializedSnapshot) as SerializedSummarySnapshotV1;
+
+    expect(snapshot.schemaVersion).toBe(1);
+    expect(snapshot.mode).toBe("today");
+    expect(snapshot.hourlyReport).toBeNull();
+    expect(snapshot.command.groupBy).toEqual(["model"]);
+    expect(snapshot.summaryReport.metrics.agentCoverageBlocks[0]).toEqual({
+      start: fixture.summaryReport.metrics.agentCoverageBlocks[0]!.start.toISOString(),
+      end: fixture.summaryReport.metrics.agentCoverageBlocks[0]!.end.toISOString(),
+    });
+    expect(snapshot.summaryReport.tokenTotals.rawTotalTokens).toBe(
+      fixture.summaryReport.tokenTotals.rawTotalTokens,
+    );
+    expect(snapshot.summaryReport.wakeSummary?.awakeIdleMs).toBe(
+      fixture.summaryReport.wakeSummary?.awakeIdleMs,
+    );
+  });
+
+  test("serializes an hourly snapshot with exact bucket timestamps", () => {
+    const fixture = createSnapshotSerializationFixture();
+    const serializedSnapshot = serializeHourlySnapshot({
+      command: fixture.hourlyCommand,
+      generatedAt: fixture.generatedAt,
+      hourlyReport: fixture.hourlyReport,
+    });
+    const snapshot = JSON.parse(serializedSnapshot) as SerializedHourlySnapshotV1;
+
+    expect(snapshot.schemaVersion).toBe(1);
+    expect(snapshot.mode).toBe("hourly");
+    expect(snapshot.generatedAt).toBe(fixture.generatedAt.toISOString());
+    expect(snapshot.command.wakeWindow).toBeNull();
+    expect(snapshot.hourlyReport.buckets).toHaveLength(2);
+    expect(snapshot.hourlyReport.buckets[0]?.start).toBe(
+      fixture.hourlyReport.buckets[0]?.start.toISOString(),
+    );
+    expect(snapshot.hourlyReport.buckets[0]?.rawTotalTokens).toBe(
+      fixture.hourlyReport.buckets[0]?.rawTotalTokens,
+    );
+    expect(snapshot.hourlyReport.buckets[1]?.practicalBurn).toBe(
+      fixture.hourlyReport.buckets[1]?.practicalBurn,
+    );
+    expect(snapshot.hourlyReport.maxValues.engagedMs).toBe(
+      fixture.hourlyReport.maxValues.engagedMs,
+    );
+  });
+
+  test("serializes a live snapshot with exact observed time and counters", () => {
+    const fixture = createSnapshotSerializationFixture();
+    const serializedSnapshot = serializeLiveSnapshot({
+      command: fixture.liveCommand,
+      generatedAt: fixture.generatedAt,
+      liveReport: fixture.liveReport,
+    });
+    const snapshot = JSON.parse(serializedSnapshot) as SerializedLiveSnapshotV1;
+
+    expect(snapshot.schemaVersion).toBe(1);
+    expect(snapshot.mode).toBe("live");
+    expect(snapshot.generatedAt).toBe(fixture.generatedAt.toISOString());
+    expect(snapshot.command).toEqual(fixture.liveCommand);
+    expect(snapshot.liveReport.observedAt).toBe(
+      fixture.liveReport.observedAt.toISOString(),
+    );
+    expect(snapshot.liveReport.scope).toBe(fixture.liveReport.scope);
+    expect(snapshot.liveReport.workspacePrefix).toBe(
+      fixture.liveReport.workspacePrefix,
+    );
+    expect(snapshot.liveReport.waitingOnUserCount).toBe(1);
+    expect(snapshot.liveReport.waitingOnUserLocations).toEqual([
+      {
+        cwd: "/tmp/codex-fixtures/reply-needed",
+        waitingCount: 1,
+      },
+    ]);
+    expect(snapshot.liveReport.waitingThreads).toEqual([
+      expect.objectContaining({
+        cwd: "/tmp/codex-fixtures/reply-needed",
+        sessionId: "direct-waiting",
+      }),
+    ]);
+    expect(snapshot.liveReport.runningCount).toBe(2);
+    expect(snapshot.liveReport.runningLocations).toEqual([
+      {
+        cwd: "/tmp/codex-fixtures/agent-runner",
+        runningCount: 1,
+      },
+      {
+        cwd: "/tmp/codex-fixtures/demo-workspace",
+        runningCount: 1,
+      },
+    ]);
+    expect(snapshot.liveReport.doneRecentCount).toBe(2);
+    expect(snapshot.liveReport.doneThisTurnCount).toBe(1);
+    expect(snapshot.liveReport.peakTodayCount).toBe(4);
+    expect(snapshot.liveReport.scope).toBe("global");
+    expect(snapshot.liveReport.workspacePrefix).toBeNull();
+    expect(snapshot.liveReport.recentConcurrencyValues).toEqual(
+      fixture.liveReport.recentConcurrencyValues,
+    );
   });
 });
 
 function createSession(input: {
+  cwd?: string;
   sessionId: string;
   kind: ParsedSession["kind"];
   eventTimes: string[];
@@ -361,12 +717,13 @@ function createSession(input: {
   usage: TokenUsage;
   model: string;
   reasoningEffort: string;
+  taskWindows?: ProtocolTaskWindow[];
 }): ParsedSession {
   const eventTimestamps = input.eventTimes.map((value) => new Date(value));
   return {
     sessionId: input.sessionId,
     sourceFilePath: `${input.sessionId}.jsonl`,
-    cwd: "/tmp/codex-fixtures/demo-workspace",
+    cwd: input.cwd ?? "/tmp/codex-fixtures/demo-workspace",
     kind: input.kind,
     forkedFromSessionId: null,
     firstTimestamp: eventTimestamps[0]!,
@@ -377,6 +734,7 @@ function createSession(input: {
     userMessageTimestamps: input.userMessageTimes.map((value) => new Date(value)),
     turnAttributions: [],
     agentSpawnRequests: [],
+    taskWindows: input.taskWindows ?? [],
     primaryModel: input.model,
     primaryReasoningEffort: input.reasoningEffort,
   };
@@ -410,6 +768,32 @@ function createUsage(
   };
 }
 
+function createTaskWindow(input: {
+  completedAt: string | null;
+  cwd?: string;
+  lastActivityAt: string;
+  parentSessionId: string | null;
+  sessionId: string;
+  sessionKind?: ProtocolTaskWindow["sessionKind"];
+  startedAt: string;
+  turnId: string;
+}): ProtocolTaskWindow {
+  return {
+    taskId: `${input.sessionId}:${input.turnId}:0`,
+    sessionId: input.sessionId,
+    parentSessionId: input.parentSessionId,
+    sessionKind: input.sessionKind ?? "subagent",
+    cwd: input.cwd ?? "/tmp/codex-fixtures/demo-workspace",
+    turnId: input.turnId,
+    model: "gpt-5.4-mini",
+    reasoningEffort: "high",
+    startedAt: new Date(input.startedAt),
+    lastActivityAt: new Date(input.lastActivityAt),
+    completedAt: input.completedAt ? new Date(input.completedAt) : null,
+    staleAfterMs: 2 * 60_000,
+  };
+}
+
 function createRhythmReportFixture(): HourlyReport {
   const start = new Date("2026-03-26T08:00:00-04:00");
   const buckets: HourlyBucket[] = Array.from({ length: 24 }, (_, index) => {
@@ -440,6 +824,7 @@ function createRhythmReportFixture(): HourlyReport {
       model: null,
       reasoningEffort: null,
     },
+    agentConcurrencySource: "task-window-adapter",
     buckets,
     hasWakeWindow: false,
     idleCutoffMs: parseDurationToMs("15m"),
@@ -457,5 +842,221 @@ function createRhythmReportFixture(): HourlyReport {
       end: new Date(start.getTime() + 24 * 3_600_000),
       timeZone: "America/New_York",
     },
+  };
+}
+
+function createSnapshotSerializationFixture(): {
+  generatedAt: Date;
+  hourlyCommand: JsonHourlySnapshotCommand;
+  hourlyReport: HourlyReport;
+  liveReport: ReturnType<typeof buildLiveReport>;
+  liveCommand: JsonLiveSnapshotCommand;
+  summaryCommand: JsonSummarySnapshotCommand;
+  summaryReport: ReturnType<typeof buildSummaryReport>;
+} {
+  const reportWindow = {
+    label: "serialization-window",
+    start: new Date("2026-03-26T09:00:00-04:00"),
+    end: new Date("2026-03-26T11:00:00-04:00"),
+    timeZone: "America/New_York",
+  };
+  const sharedFilters = {
+    workspaceOnlyPrefix: null,
+    sessionKind: null,
+    model: null,
+    reasoningEffort: null,
+  };
+  const sessions = [
+    createSession({
+      sessionId: "direct-main",
+      kind: "direct",
+      eventTimes: [
+        "2026-03-26T09:00:00-04:00",
+        "2026-03-26T09:05:00-04:00",
+        "2026-03-26T09:25:00-04:00",
+      ],
+      userMessageTimes: [
+        "2026-03-26T09:00:00-04:00",
+        "2026-03-26T09:25:00-04:00",
+      ],
+      tokenPoints: [
+        createTokenPoint(
+          "2026-03-26T09:05:00-04:00",
+          createUsage(100, 0, 0, 100),
+        ),
+      ],
+      usage: createUsage(220, 0, 0, 220),
+      model: "gpt-5.4",
+      reasoningEffort: "xhigh",
+    }),
+    createSession({
+      sessionId: "subagent-a",
+      kind: "subagent",
+      eventTimes: [
+        "2026-03-26T09:10:00-04:00",
+        "2026-03-26T09:40:00-04:00",
+      ],
+      userMessageTimes: [],
+      tokenPoints: [
+        createTokenPoint(
+          "2026-03-26T09:45:00-04:00",
+          createUsage(50, 0, 0, 50),
+        ),
+      ],
+      usage: createUsage(80, 0, 0, 80),
+      model: "gpt-5.4-mini",
+      reasoningEffort: "high",
+    }),
+    createSession({
+      sessionId: "subagent-b",
+      kind: "subagent",
+      eventTimes: ["2026-03-26T09:45:00-04:00"],
+      userMessageTimes: [],
+      tokenPoints: [],
+      usage: createUsage(40, 0, 0, 40),
+      model: "gpt-5.4-mini",
+      reasoningEffort: "high",
+    }),
+  ];
+
+  const summaryCommand: JsonSummarySnapshotCommand = {
+    idleCutoffMs: parseDurationToMs("15m"),
+    filters: sharedFilters,
+    groupBy: ["model"],
+    wakeWindow: parseWakeWindow("09:00-10:30"),
+  };
+  const hourlyCommand: JsonHourlySnapshotCommand = {
+    idleCutoffMs: parseDurationToMs("15m"),
+    filters: sharedFilters,
+    wakeWindow: null,
+  };
+  const summaryReport = buildSummaryReport(sessions, {
+    filters: sharedFilters,
+    groupBy: summaryCommand.groupBy,
+    idleCutoffMs: summaryCommand.idleCutoffMs,
+    wakeWindow: summaryCommand.wakeWindow,
+    window: reportWindow,
+  });
+  const hourlyReport = buildHourlyReport(sessions, {
+    filters: sharedFilters,
+    idleCutoffMs: hourlyCommand.idleCutoffMs,
+    wakeWindow: hourlyCommand.wakeWindow,
+    window: reportWindow,
+  });
+  const observedAt = new Date("2026-03-26T09:55:00-04:00");
+  const liveReport = buildLiveReport(
+    [
+      createSession({
+        sessionId: "direct-main",
+        kind: "direct",
+        eventTimes: [
+          "2026-03-26T09:40:00-04:00",
+          "2026-03-26T09:45:00-04:00",
+          "2026-03-26T09:55:00-04:00",
+        ],
+        userMessageTimes: ["2026-03-26T09:40:00-04:00"],
+        tokenPoints: [],
+        usage: createUsage(0, 0, 0, 0),
+        model: "gpt-5.4",
+        reasoningEffort: "high",
+        taskWindows: [
+          createTaskWindow({
+            completedAt: null,
+            lastActivityAt: "2026-03-26T09:55:00-04:00",
+            parentSessionId: null,
+            sessionId: "direct-main",
+            startedAt: "2026-03-26T09:40:00-04:00",
+            turnId: "turn-direct",
+            sessionKind: "direct",
+          }),
+        ],
+      }),
+      createSession({
+        sessionId: "subagent-running",
+        kind: "subagent",
+        cwd: "/tmp/codex-fixtures/agent-runner",
+        eventTimes: ["2026-03-26T09:42:00-04:00"],
+        userMessageTimes: [],
+        tokenPoints: [],
+        usage: createUsage(0, 0, 0, 0),
+        model: "gpt-5.4-mini",
+        reasoningEffort: "high",
+        taskWindows: [
+          createTaskWindow({
+            completedAt: null,
+            cwd: "/tmp/codex-fixtures/agent-runner",
+            lastActivityAt: "2026-03-26T09:54:00-04:00",
+            parentSessionId: "direct-main",
+            sessionId: "subagent-running",
+            startedAt: "2026-03-26T09:42:00-04:00",
+            turnId: "turn-running",
+          }),
+        ],
+      }),
+      createSession({
+        sessionId: "subagent-done",
+        kind: "subagent",
+        eventTimes: ["2026-03-26T09:43:00-04:00"],
+        userMessageTimes: [],
+        tokenPoints: [],
+        usage: createUsage(0, 0, 0, 0),
+        model: "gpt-5.4-mini",
+        reasoningEffort: "high",
+        taskWindows: [
+          createTaskWindow({
+            completedAt: "2026-03-26T09:50:00-04:00",
+            lastActivityAt: "2026-03-26T09:50:00-04:00",
+            parentSessionId: "direct-main",
+            sessionId: "subagent-done",
+            startedAt: "2026-03-26T09:43:00-04:00",
+            turnId: "turn-done",
+          }),
+        ],
+      }),
+      createSession({
+        sessionId: "direct-waiting",
+        kind: "direct",
+        cwd: "/tmp/codex-fixtures/reply-needed",
+        eventTimes: [
+          "2026-03-26T09:44:00-04:00",
+          "2026-03-26T09:53:00-04:00",
+        ],
+        userMessageTimes: ["2026-03-26T09:44:00-04:00"],
+        tokenPoints: [],
+        usage: createUsage(0, 0, 0, 0),
+        model: "gpt-5.4",
+        reasoningEffort: "high",
+        taskWindows: [
+          createTaskWindow({
+            completedAt: "2026-03-26T09:53:00-04:00",
+            cwd: "/tmp/codex-fixtures/reply-needed",
+            lastActivityAt: "2026-03-26T09:53:00-04:00",
+            parentSessionId: null,
+            sessionId: "direct-waiting",
+            startedAt: "2026-03-26T09:44:00-04:00",
+            turnId: "turn-waiting",
+            sessionKind: "direct",
+          }),
+        ],
+      }),
+    ],
+    {
+      filters: sharedFilters,
+      observedAt,
+    },
+  );
+
+  const liveCommand: JsonLiveSnapshotCommand = {
+    filters: liveReport.appliedFilters,
+  };
+
+  return {
+    generatedAt: new Date("2026-03-26T10:05:00-04:00"),
+    hourlyCommand,
+    hourlyReport,
+    liveCommand,
+    liveReport,
+    summaryCommand,
+    summaryReport,
   };
 }

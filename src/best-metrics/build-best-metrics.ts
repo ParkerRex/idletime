@@ -28,7 +28,7 @@ export function buildBestMetricCandidates(
 
   return {
     bestConcurrentAgents: findBestConcurrentAgents(
-      activityMetrics.perSubagentBlocks,
+      activityMetrics.perAgentTaskBlocks,
     ),
     best24hRawBurn: findBestRollingWindowTotal(
       sessions.flatMap((session) =>
@@ -39,7 +39,7 @@ export function buildBestMetricCandidates(
       ),
     ),
     best24hAgentSumMs: findBestRollingWindowOverlap(
-      activityMetrics.perSubagentBlocks.flatMap((sessionBlocks) => sessionBlocks),
+      activityMetrics.perAgentTaskBlocks.flatMap((taskBlocks) => taskBlocks),
     ),
   };
 }

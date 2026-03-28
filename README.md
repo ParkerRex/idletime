@@ -14,7 +14,7 @@ Local Bun CLI for Codex activity, token burn, visual 24-hour rhythm charts, and 
 
 ## How It Works
 
-`idletime` is read-only. It scans your local Codex session logs under `~/.codex/sessions/YYYY/MM/DD/*.jsonl` and builds reports from those raw events.
+The dashboard and snapshot commands are read-only. They scan your local Codex session logs under `~/.codex/sessions/YYYY/MM/DD/*.jsonl` and build reports from those raw events. The explicit `refresh-bests` command is the maintenance exception: it updates `~/.idletime/` and can fire best-related notifications.
 
 At a high level:
 
@@ -66,6 +66,7 @@ That shows:
 
 - A gold `BEST` plaque in the header for your top concurrent agents, top 24-hour raw burn, and top agent-sum record
 - A framed trailing-24h dashboard
+- A dedicated `Agents` section that charts concurrent child-task windows over the day
 - A `24h Rhythm` strip for `focus`, `active`, `quiet` or `idle`, and `burn`
 - `Spike Callouts` for the biggest burn hours
 - A lower detail section with activity, tokens, and wake-window stats
@@ -77,11 +78,14 @@ That shows:
 - `idle`: awake idle time, only shown when you pass `--wake`
 - `quiet`: non-active time when no wake window is provided
 - `burn`: practical burn, calculated as `input - cached_input + output`
+- `Agents`: concurrent child-task windows derived from transcript lifecycle records when they exist, with a compatibility fallback for older subagent logs
 
 Additional behavior:
 
 - `last24h`: the default trailing window, clipped to the actual last 24 hours
 - `today`: local midnight to now
+- `live`: global task scoreboard by default, with `waiting on you`, `running`, recent concurrency, and per-project live state
+- `refresh-bests`: explicit full-history personal-record refresh for the `BEST` plaque and best-related notifications
 - `direct`: user-started work in the main CLI or compatible direct session types
 - `subagent`: spawned agent sessions
 - `idle cutoff`: how long activity stays alive after the last event before it counts as quiet or idle
@@ -124,11 +128,53 @@ Open the full hourly table:
 bun run idletime hourly --window 24h --workspace-only /path/to/demo-workspace
 ```
 
+Open the live global scoreboard:
+
+```bash
+bun run idletime live
+```
+
+`live` defaults to all local sessions. Use `--workspace-only` when you want to pin the board to one repo or project path.
+Use `--global` when you want to clear a previously added workspace scope explicitly.
+When stdout is a TTY it repaints in place like a scoreboard. When stdout is not a TTY, it renders one snapshot and exits, which makes it usable in scripts and validation.
+
+Pin the live board to one workspace:
+
+```bash
+bun run idletime live --workspace-only /path/to/demo-workspace
+```
+
+Refresh your `BEST` records explicitly:
+
+```bash
+bun run idletime refresh-bests
+```
+
 Group the summary by model and effort:
 
 ```bash
 bun run idletime last24h --group-by model --group-by effort
 ```
+
+Get machine-readable snapshots:
+
+```bash
+bun run idletime --json
+```
+
+```bash
+bun run idletime today --json
+```
+
+```bash
+bun run idletime hourly --json
+```
+
+```bash
+bun run idletime live --json
+```
+
+`--json` is read-only. It emits one versioned JSON snapshot and exits. On `last24h` and `today`, it does not refresh best metrics or trigger best-related notifications. `--share` is human-only and cannot be combined with `--json`.
 
 ## Share Mode
 
@@ -145,12 +191,24 @@ That is the best mode for terminal screenshots.
 
 The top of the dashboard is intentionally visual-first.
 
+- `Agents` plots concurrent child-task windows with real clock labels like `8am`, `12pm`, and `4pm`
 - `24h Rhythm` gives one character per hour bucket across the trailing day
 - `focus` makes it obvious where you were actually engaged
 - `active` shows the broader direct-session footprint
 - `idle` appears when you pass `--wake`, otherwise that lane becomes `quiet`
 - `burn` highlights token spikes without making you read the table first
 - `Spike Callouts` surfaces the top burn hours immediately
+
+The live board is intentionally narrower:
+
+- `waiting on you`: recent direct sessions whose latest task completed after your last `user_message`, so you likely owe the next reply
+- `running`: active task windows across the selected scope after effort-aware staleness
+- `running at`: per-project counts for currently running work
+- `waiting at`: per-project counts for sessions currently waiting on you
+- `top waiting`: the specific waiting threads, shown as `project • age • thread id`
+- `recent`: short live concurrency strip across the last 15 minutes
+- `this turn`: completed child tasks anchored to the latest still-warm direct `user_message`
+- `today peak`: highest observed concurrent child-task count since local midnight
 
 ## Help
 
@@ -182,9 +240,16 @@ idletime --version
 
 By default:
 
-- the `BEST` plaque is always shown in the normal header
-- genuine new-best events can trigger a local macOS notification
+- dashboards read cached `BEST` values when `bests-v1.json` already exists
+- a cold cache renders without the `BEST` plaque instead of bootstrapping best state implicitly
+- genuine new-best events can trigger a local macOS notification during the explicit refresh path
 - near-best nudges are stored but disabled until you opt in by setting `nearBestEnabled` to `true`
+
+When you want to recompute those records, update the ledger, and fire any eligible notifications, run:
+
+```bash
+bun run idletime refresh-bests
+```
 
 ## Validation
 
@@ -205,6 +270,8 @@ That QA pass reads:
 - `qa/data/coverage-matrix.csv` for required release coverage rows
 
 It builds the package, packs the current checkout, installs the tarball into an isolated temp `BUN_INSTALL`, seeds synthetic Codex session logs, and runs the shell journeys against the installed `idletime` binary.
+
+Operational note: the default `last24h` and `today` commands now stay on the fast read path. They render from the requested report window plus any cached `BEST` ledger state and do not refresh records implicitly. `refresh-bests` is the only CLI command that performs the full-history best-metrics scan.
 
 ## Release Prep
 

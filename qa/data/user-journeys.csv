@@ -1,7 +1,13 @@
-journey_id,title,command,expected_substrings,forbidden_substrings
-installed-version,prints the installed version,idletime --version,{{PACKAGE_VERSION}},Error:|Cannot find module|command not found
-help-screen,prints the help screen,idletime --help,idletime|Track Codex focus,Error:|Cannot find module|command not found
-default-dashboard,renders the last24h dashboard,COLUMNS=120 idletime,idletime • last24h|24h Rhythm|Activity,Error:|Token usage regressed|Cannot find module
-share-dashboard,renders the share dashboard,COLUMNS=120 idletime --share,idletime • last24h|24h Rhythm|Snapshot,Error:|Token usage regressed|Cannot find module
-today-dashboard,renders the today dashboard,COLUMNS=120 idletime today,idletime • today|Activity|Tokens,Error:|Token usage regressed|Cannot find module
-hourly-dashboard,renders the hourly dashboard,COLUMNS=120 idletime hourly --window 24h,idletime hourly •|Hourly View|burn,Error:|Token usage regressed|Cannot find module
+journey_id,title,command,expected_substrings,forbidden_substrings,json_assertions
+installed-version,prints the installed version,idletime --version,{{PACKAGE_VERSION}},Error:|Cannot find module|command not found,
+help-screen,prints the help screen,idletime --help,idletime|Track Codex focus,Error:|Cannot find module|command not found,
+default-dashboard,renders the last24h dashboard without creating best state,"rm -rf ""$HOME/.idletime"" && COLUMNS=120 idletime >/tmp/idletime-default.txt && cat /tmp/idletime-default.txt && test ! -f ""$HOME/.idletime/bests-v1.json""",idletime • last24h|24h Rhythm|Activity,Error:|Token usage regressed|Cannot find module,
+share-dashboard,renders the share dashboard,COLUMNS=120 idletime --share,idletime • last24h|24h Rhythm|Snapshot,Error:|Token usage regressed|Cannot find module,
+today-dashboard,renders the today dashboard,COLUMNS=120 idletime today,idletime • today|Activity|Tokens,Error:|Token usage regressed|Cannot find module,
+hourly-dashboard,renders the hourly dashboard,COLUMNS=120 idletime hourly --window 24h,idletime hourly •|Hourly View|burn,Error:|Token usage regressed|Cannot find module,
+live-dashboard,renders the live scoreboard snapshot,COLUMNS=120 idletime live,scope global|waiting on you|running at|waiting at|top waiting,Error:|Cannot find module|command not found,
+json-last24h,renders a machine-readable last24h snapshot,"rm -rf ""$HOME/.idletime"" && idletime --json && test ! -f ""$HOME/.idletime/bests-v1.json""",,Error:|Cannot find module|command not found,"schemaVersion=1|mode=""last24h""|summaryReport.window.label=""last24h"""
+json-today,renders a machine-readable today snapshot,"rm -rf ""$HOME/.idletime"" && idletime today --json && test ! -f ""$HOME/.idletime/bests-v1.json""",,Error:|Cannot find module|command not found,"schemaVersion=1|mode=""today""|summaryReport.window.label=""today""|hourlyReport=null"
+json-hourly,renders a machine-readable hourly snapshot,"rm -rf ""$HOME/.idletime"" && idletime hourly --window 24h --json && test ! -f ""$HOME/.idletime/bests-v1.json""",,Error:|Cannot find module|command not found,"schemaVersion=1|mode=""hourly""|hourlyReport.window.label=""last24h"""
+json-live,renders a machine-readable live snapshot,"rm -rf ""$HOME/.idletime"" && idletime live --json && test ! -f ""$HOME/.idletime/bests-v1.json""",,Error:|Cannot find module|command not found,"schemaVersion=1|mode=""live""|liveReport.scope=""global"""
+refresh-bests,refreshes best metrics explicitly,"rm -rf ""$HOME/.idletime"" && idletime refresh-bests && test -f ""$HOME/.idletime/bests-v1.json""",BEST metrics refreshed|mode: bootstrap|new bests: 0|last scanned:,Error:|Cannot find module|command not found,

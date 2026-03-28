@@ -2,7 +2,12 @@ import { describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ParsedSession, TokenPoint, TokenUsage } from "../src/codex-session-log/types.ts";
+import type {
+  ParsedSession,
+  ProtocolTaskWindow,
+  TokenPoint,
+  TokenUsage,
+} from "../src/codex-session-log/types.ts";
 import { buildBestMetricCandidates } from "../src/best-metrics/build-best-metrics.ts";
 import { refreshBestMetrics } from "../src/best-metrics/refresh-best-metrics.ts";
 import { readAllCodexSessions } from "../src/best-metrics/read-all-codex-sessions.ts";
@@ -21,6 +26,10 @@ import {
 import { writeBestLedger } from "../src/best-metrics/write-best-ledger.ts";
 import { bestMetricsLedgerVersion } from "../src/best-metrics/types.ts";
 import type { BestMetricsLedger } from "../src/best-metrics/types.ts";
+import { runLast24hCommand } from "../src/cli/run-last24h-command.ts";
+import { runRefreshBestsCommand } from "../src/cli/run-refresh-bests-command.ts";
+import { runTodayCommand } from "../src/cli/run-today-command.ts";
+import type { ParsedIdletimeCommand } from "../src/cli/parse-idletime-command.ts";
 
 describe("best metrics", () => {
   test("builds global best candidates from session history", () => {
@@ -567,7 +576,199 @@ describe("best metrics", () => {
       }),
     ).toEqual([]);
   });
+
+  test("last24h reuses a cached best ledger without mutating it", async () => {
+    const stateDirectory = await mkdtemp(join(tmpdir(), "idletime-last24h-"));
+    const sessionRootDirectory = await mkdtemp(
+      join(tmpdir(), "idletime-last24h-sessions-"),
+    );
+    const observedAt = new Date("2026-03-28T12:00:00.000Z");
+    const ledger = createDashboardLedger(observedAt);
+
+    await writeSessionFixture(sessionRootDirectory, {
+      sessionId: "direct-session",
+      source: "cli",
+      records: [
+        buildTurnContextRecord(
+          "2026-03-28T10:00:00.001Z",
+          "turn-1",
+          "gpt-5.4",
+          "high",
+        ),
+        buildTokenCountRecord("2026-03-28T10:05:00.000Z", 160, 0, 40, 200),
+      ],
+      timestamp: "2026-03-28T10:00:00.000Z",
+    });
+
+    await writeBestLedger(ledger, { stateDirectory });
+
+    const renderedReport = await runLast24hCommand(
+      createDashboardCommand("last24h"),
+      {
+        now: observedAt,
+        sessionRootDirectory,
+        stateDirectory,
+      },
+    );
+
+    expect(renderedReport).toContain("BEST");
+    expect(renderedReport).toContain("8 concurrent agents");
+    expect(await readBestLedger({ stateDirectory })).toEqual(ledger);
+  });
+
+  test("today omits BEST when the cached ledger is missing", async () => {
+    const stateDirectory = await mkdtemp(join(tmpdir(), "idletime-today-"));
+    const sessionRootDirectory = await mkdtemp(
+      join(tmpdir(), "idletime-today-sessions-"),
+    );
+    const observedAt = new Date("2026-03-28T12:00:00.000Z");
+
+    await writeSessionFixture(sessionRootDirectory, {
+      sessionId: "direct-session",
+      source: "cli",
+      records: [
+        buildTurnContextRecord(
+          "2026-03-28T10:00:00.001Z",
+          "turn-1",
+          "gpt-5.4",
+          "high",
+        ),
+        buildTokenCountRecord("2026-03-28T10:05:00.000Z", 160, 0, 40, 200),
+      ],
+      timestamp: "2026-03-28T10:00:00.000Z",
+    });
+
+    const renderedReport = await runTodayCommand(createDashboardCommand("today"), {
+      now: observedAt,
+      sessionRootDirectory,
+      stateDirectory,
+    });
+
+    expect(renderedReport).not.toContain("BEST");
+    expect(await readBestLedger({ stateDirectory })).toBeNull();
+  });
+
+  test("refresh-bests bootstraps and refreshes the ledger with a stable summary", async () => {
+    const stateDirectory = await mkdtemp(join(tmpdir(), "idletime-refresh-"));
+    const sessionRootDirectory = await mkdtemp(
+      join(tmpdir(), "idletime-refresh-sessions-"),
+    );
+    const bootstrapAt = new Date("2026-03-28T12:00:00.000Z");
+    const refreshAt = new Date("2026-03-28T13:00:00.000Z");
+
+    await writeSessionFixture(sessionRootDirectory, {
+      sessionId: "direct-session",
+      source: "cli",
+      records: [
+        buildTurnContextRecord(
+          "2026-03-28T10:00:00.001Z",
+          "turn-1",
+          "gpt-5.4",
+          "high",
+        ),
+        buildTokenCountRecord("2026-03-28T10:05:00.000Z", 160, 0, 40, 200),
+      ],
+      timestamp: "2026-03-28T10:00:00.000Z",
+    });
+
+    const bootstrapSummary = await runRefreshBestsCommand({
+      now: bootstrapAt,
+      platform: "linux",
+      sessionRootDirectory,
+      stateDirectory,
+    });
+
+    expect(bootstrapSummary).toBe(
+      [
+        "BEST metrics refreshed",
+        "mode: bootstrap",
+        "new bests: 0",
+        `last scanned: ${bootstrapAt.toISOString()}`,
+      ].join("\n"),
+    );
+
+    const bootstrappedLedger = await readBestLedger({ stateDirectory });
+    expect(bootstrappedLedger).not.toBeNull();
+    expect(bootstrappedLedger?.lastScannedAt.toISOString()).toBe(
+      bootstrapAt.toISOString(),
+    );
+    await expect(
+      readFile(resolveBestEventsPath({ stateDirectory }), "utf8"),
+    ).rejects.toThrow();
+
+    const refreshSummary = await runRefreshBestsCommand({
+      now: refreshAt,
+      platform: "linux",
+      sessionRootDirectory,
+      stateDirectory,
+    });
+
+    expect(refreshSummary).toBe(
+      [
+        "BEST metrics refreshed",
+        "mode: refresh",
+        "new bests: 0",
+        `last scanned: ${refreshAt.toISOString()}`,
+      ].join("\n"),
+    );
+
+    const refreshedLedger = await readBestLedger({ stateDirectory });
+    expect(refreshedLedger?.lastScannedAt.toISOString()).toBe(
+      refreshAt.toISOString(),
+    );
+    await expect(
+      readFile(resolveBestEventsPath({ stateDirectory }), "utf8"),
+    ).rejects.toThrow();
+  });
 });
+
+function createDashboardCommand(
+  commandName: "last24h" | "today",
+): ParsedIdletimeCommand {
+  return {
+    commandName,
+    filters: {
+      workspaceOnlyPrefix: null,
+      sessionKind: null,
+      model: null,
+      reasoningEffort: null,
+    },
+    groupBy: [],
+    helpRequested: false,
+    hourlyWindowMs: 24 * 60 * 60 * 1000,
+    idleCutoffMs: 15 * 60 * 1000,
+    outputFormat: "text",
+    shareMode: false,
+    versionRequested: false,
+    wakeWindow: null,
+  };
+}
+
+function createDashboardLedger(observedAt: Date): BestMetricsLedger {
+  return {
+    version: bestMetricsLedgerVersion,
+    initializedAt: new Date("2026-03-28T10:00:00.000Z"),
+    lastScannedAt: observedAt,
+    bestConcurrentAgents: {
+      value: 8,
+      observedAt,
+      windowStart: new Date("2026-03-27T18:00:00.000Z"),
+      windowEnd: observedAt,
+    },
+    best24hRawBurn: {
+      value: 1_800_000_000,
+      observedAt,
+      windowStart: new Date("2026-03-27T18:00:00.000Z"),
+      windowEnd: observedAt,
+    },
+    best24hAgentSumMs: {
+      value: 31 * 60 * 1000,
+      observedAt,
+      windowStart: new Date("2026-03-27T18:00:00.000Z"),
+      windowEnd: observedAt,
+    },
+  };
+}
 
 function createSession(input: {
   sessionId: string;
@@ -578,6 +779,7 @@ function createSession(input: {
   usage: TokenUsage;
   model: string;
   reasoningEffort: string;
+  taskWindows?: ProtocolTaskWindow[];
 }): ParsedSession {
   const eventTimestamps = input.eventTimes.map((value) => new Date(value));
 
@@ -595,6 +797,7 @@ function createSession(input: {
     userMessageTimestamps: input.userMessageTimes.map((value) => new Date(value)),
     turnAttributions: [],
     agentSpawnRequests: [],
+    taskWindows: input.taskWindows ?? [],
     primaryModel: input.model,
     primaryReasoningEffort: input.reasoningEffort,
   };

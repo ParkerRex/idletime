@@ -29,7 +29,7 @@ export function buildSummaryReport(
     end: query.window.end,
   };
   const metrics = clipActivityMetricsToWindow(
-    buildActivityMetrics(filteredSessions, query.idleCutoffMs),
+    buildActivityMetrics(filteredSessions, query.idleCutoffMs, query.window.end),
     windowInterval,
   );
   const comparisonCutoffMs = parseDurationToMs("30m");
@@ -47,7 +47,11 @@ export function buildSummaryReport(
       query.idleCutoffMs === comparisonCutoffMs
         ? metrics
         : clipActivityMetricsToWindow(
-            buildActivityMetrics(filteredSessions, comparisonCutoffMs),
+            buildActivityMetrics(
+              filteredSessions,
+              comparisonCutoffMs,
+              query.window.end,
+            ),
             windowInterval,
           ),
     directTokenTotals: sumTokenTotals(
@@ -85,6 +89,7 @@ function buildGroupBreakdowns(
         groupedSessions.sessions,
         idleCutoffMs,
         windowInterval,
+        windowInterval.end,
       ),
     ),
   }));
@@ -95,9 +100,10 @@ function buildGroupRow(
   sessions: ParsedSession[],
   idleCutoffMs: number,
   windowInterval: TimeInterval,
+  observedAt: Date,
 ): SummaryBreakdownRow {
   const metrics = clipActivityMetricsToWindow(
-    buildActivityMetrics(sessions, idleCutoffMs),
+    buildActivityMetrics(sessions, idleCutoffMs, observedAt),
     windowInterval,
   );
   const tokenTotals = sumTokenTotals(sessions, windowInterval);
@@ -204,8 +210,8 @@ function clipActivityMetricsToWindow(
     metrics.agentOnlyBlocks,
     [windowInterval],
   );
-  const perSubagentBlocks = metrics.perSubagentBlocks.map((sessionBlocks) =>
-    intersectTimeIntervals(sessionBlocks, [windowInterval]),
+  const perAgentTaskBlocks = metrics.perAgentTaskBlocks.map((taskBlocks) =>
+    intersectTimeIntervals(taskBlocks, [windowInterval]),
   );
 
   return {
@@ -213,16 +219,16 @@ function clipActivityMetricsToWindow(
     directActivityBlocks,
     agentCoverageBlocks,
     agentOnlyBlocks,
-    perSubagentBlocks,
+    perAgentTaskBlocks,
     strictEngagementMs: sumTimeIntervalsMs(strictEngagementBlocks),
     directActivityMs: sumTimeIntervalsMs(directActivityBlocks),
     agentCoverageMs: sumTimeIntervalsMs(agentCoverageBlocks),
     agentOnlyMs: sumTimeIntervalsMs(agentOnlyBlocks),
-    cumulativeAgentMs: perSubagentBlocks.reduce(
-      (totalDurationMs, sessionBlocks) =>
-        totalDurationMs + sumTimeIntervalsMs(sessionBlocks),
+    cumulativeAgentMs: perAgentTaskBlocks.reduce(
+      (totalDurationMs, taskBlocks) =>
+        totalDurationMs + sumTimeIntervalsMs(taskBlocks),
       0,
     ),
-    peakConcurrentAgents: peakConcurrency(perSubagentBlocks),
+    peakConcurrentAgents: peakConcurrency(perAgentTaskBlocks),
   };
 }

@@ -2,14 +2,12 @@ import {
   buildSparkline,
   formatCompactInteger,
   formatDurationCompact,
-  formatHourOfDay,
   padRight,
 } from "./report-formatting.ts";
+import { buildGroupedTrack, buildTimeAxisLine } from "./render-time-axis.ts";
 import { paint } from "./render-theme.ts";
 import { renderSectionTitle } from "./render-shared-sections.ts";
 import type { HourlyReport, RenderOptions } from "./types.ts";
-
-const groupSize = 4;
 
 export function buildRhythmSection(
   report: HourlyReport,
@@ -38,7 +36,7 @@ export function buildRhythmSection(
 
   const lines: string[] = [
     ...renderSectionTitle("24h Rhythm", options),
-    paint(`  hours  ${buildHourMarkerLine(report)}`, "muted", options),
+    paint(`  time   ${buildTimeAxisLine(report)}`, "muted", options),
     renderRhythmRow(
       "focus",
       buildGroupedTrack(
@@ -98,34 +96,6 @@ export function buildRhythmSection(
   );
 
   return lines;
-}
-
-function buildGroupedTrack(text: string): string {
-  const groups: string[] = [];
-  for (let i = 0; i < text.length; i += groupSize) {
-    groups.push(text.slice(i, i + groupSize));
-  }
-  return groups.join("│");
-}
-
-function buildHourMarkerLine(report: HourlyReport): string {
-  const markerGroups: string[] = [];
-
-  for (let index = 0; index < report.buckets.length; index += groupSize) {
-    const bucket = report.buckets[index];
-    if (!bucket) {
-      continue;
-    }
-
-    markerGroups.push(
-      padRight(
-        formatHourOfDay(bucket.start, report.window),
-        Math.min(groupSize, report.buckets.length - index),
-      ),
-    );
-  }
-
-  return markerGroups.join("│");
 }
 
 function renderRhythmRow(
