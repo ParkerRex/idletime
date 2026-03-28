@@ -11,7 +11,11 @@ export function buildHourlyReport(
   query: HourlyReportQuery,
 ): HourlyReport {
   const filteredSessions = filterSessions(sessions, query.filters);
-  const metrics = buildActivityMetrics(filteredSessions, query.idleCutoffMs);
+  const metrics = buildActivityMetrics(
+    filteredSessions,
+    query.idleCutoffMs,
+    query.window.end,
+  );
   const wakeIntervals = query.wakeWindow
     ? buildWakeIntervalsForReportWindow(query.wakeWindow, query.window)
     : null;
@@ -25,6 +29,11 @@ export function buildHourlyReport(
 
   return {
     appliedFilters: query.filters,
+    agentConcurrencySource: filteredSessions.some(
+      (session) => session.kind === "subagent" && session.taskWindows.length === 0,
+    )
+      ? "task-window-adapter-with-session-fallback"
+      : "task-window-adapter",
     buckets,
     hasWakeWindow: query.wakeWindow !== null,
     idleCutoffMs: query.idleCutoffMs,
@@ -85,8 +94,8 @@ function buildBuckets(
       directActivityMs,
       engagedMs: measureOverlapMs(metrics.strictEngagementBlocks, bucketInterval),
       peakConcurrentAgents: peakConcurrency(
-        metrics.perSubagentBlocks.map((sessionBlocks) =>
-          clipIntervals(sessionBlocks, bucketInterval),
+        metrics.perAgentTaskBlocks.map((taskBlocks) =>
+          clipIntervals(taskBlocks, bucketInterval),
         ),
       ),
       practicalBurn: sumTokenBurn(sessions, bucketInterval),

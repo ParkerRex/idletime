@@ -20,7 +20,7 @@ export function buildCurrentBestMetricValues(
   const idleCutoffMs =
     options.idleCutoffMs ?? defaultBestMetricsIdleCutoffMs;
   const now = options.now ?? new Date();
-  const activityMetrics = buildActivityMetrics(sessions, idleCutoffMs);
+  const activityMetrics = buildActivityMetrics(sessions, idleCutoffMs, now);
   const currentWindow = {
     start: new Date(now.getTime() - rollingWindowDurationMs),
     end: now,
@@ -28,7 +28,7 @@ export function buildCurrentBestMetricValues(
 
   return {
     bestConcurrentAgents: countLiveSubagents(
-      activityMetrics.perSubagentBlocks,
+      activityMetrics.perAgentTaskBlocks,
       now,
     ),
     best24hRawBurn: sessions.reduce(
@@ -48,7 +48,7 @@ export function buildCurrentBestMetricValues(
       0,
     ),
     best24hAgentSumMs: measureOverlapMs(
-      activityMetrics.perSubagentBlocks.flatMap((sessionBlocks) => sessionBlocks),
+      activityMetrics.perAgentTaskBlocks.flatMap((taskBlocks) => taskBlocks),
       currentWindow,
     ),
   };

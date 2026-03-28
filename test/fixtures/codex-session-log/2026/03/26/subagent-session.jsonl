@@ -1,3 +1,5 @@
 {"timestamp":"2026-03-26T19:45:00.000Z","type":"session_meta","payload":{"id":"fixture-subagent-session-1","forked_from_id":"fixture-direct-session-1","timestamp":"2026-03-26T19:45:00.000Z","cwd":"/tmp/codex-fixtures/demo-workspace","source":{"subagent":{"thread_spawn":{"parent_thread_id":"fixture-direct-session-1","depth":1,"agent_nickname":"FixtureReviewer","agent_role":"reviewer"}}}}}
+{"timestamp":"2026-03-26T19:45:00.000Z","type":"event_msg","payload":{"type":"task_started","turn_id":"subagent-turn-1","model_context_window":950000,"collaboration_mode_kind":"default"}}
 {"timestamp":"2026-03-26T19:45:00.001Z","type":"turn_context","payload":{"turn_id":"subagent-turn-1","cwd":"/tmp/codex-fixtures/demo-workspace","model":"gpt-5.4-mini","effort":"high"}}
 {"timestamp":"2026-03-26T19:45:10.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":700,"cached_input_tokens":200,"output_tokens":50,"reasoning_output_tokens":20,"total_tokens":750}}}}
+{"timestamp":"2026-03-26T19:45:12.000Z","type":"event_msg","payload":{"type":"task_complete","turn_id":"subagent-turn-1","last_agent_message":"review complete"}}

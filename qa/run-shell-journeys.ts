@@ -14,6 +14,7 @@ type JourneyRow = {
   command: string;
   expected_substrings: string;
   forbidden_substrings: string;
+  json_assertions: string;
 };
 
 const packageJson = await Bun.file(packageJsonPath).json();
@@ -60,13 +61,14 @@ async function runJourney(
   environment: NodeJS.ProcessEnv,
 ) {
   const commandOutput = await runShellCommand(journeyRow.command, environment);
+  const combinedOutput = `${commandOutput.stdout}${commandOutput.stderr}`;
   const expectedSubstrings = splitPipeList(
     interpolatePlaceholders(journeyRow.expected_substrings),
   );
   const forbiddenSubstrings = splitPipeList(journeyRow.forbidden_substrings);
 
   for (const expectedSubstring of expectedSubstrings) {
-    if (!commandOutput.includes(expectedSubstring)) {
+    if (!combinedOutput.includes(expectedSubstring)) {
       throw new Error(
         `Journey ${journeyRow.journey_id} is missing expected text "${expectedSubstring}".`,
       );
@@ -74,10 +76,32 @@ async function runJourney(
   }
 
   for (const forbiddenSubstring of forbiddenSubstrings) {
-    if (commandOutput.includes(forbiddenSubstring)) {
+    if (combinedOutput.includes(forbiddenSubstring)) {
       throw new Error(
         `Journey ${journeyRow.journey_id} matched forbidden text "${forbiddenSubstring}".`,
       );
+    }
+  }
+
+  if (journeyRow.json_assertions.trim().length > 0) {
+    const parsedJson = JSON.parse(commandOutput.stdout.trim()) as Record<string, unknown>;
+    const jsonAssertions = splitPipeList(journeyRow.json_assertions);
+
+    for (const jsonAssertion of jsonAssertions) {
+      const [jsonPath, rawExpectedValue] = jsonAssertion.split("=", 2);
+      if (!jsonPath || rawExpectedValue === undefined) {
+        throw new Error(
+          `Journey ${journeyRow.journey_id} has invalid JSON assertion "${jsonAssertion}".`,
+        );
+      }
+
+      const actualValue = readJsonPath(parsedJson, jsonPath);
+      const expectedValue = parseJsonAssertionValue(rawExpectedValue);
+      if (!Object.is(actualValue, expectedValue)) {
+        throw new Error(
+          `Journey ${journeyRow.journey_id} expected JSON path "${jsonPath}" to be ${JSON.stringify(expectedValue)}, got ${JSON.stringify(actualValue)}.`,
+        );
+      }
     }
   }
 
@@ -86,6 +110,37 @@ async function runJourney(
 
 function interpolatePlaceholders(value: string): string {
   return value.replaceAll("{{PACKAGE_VERSION}}", packageVersion);
+}
+
+function parseJsonAssertionValue(value: string): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+function readJsonPath(
+  value: Record<string, unknown>,
+  path: string,
+): unknown {
+  let currentValue: unknown = value;
+
+  for (const pathSegment of path.split(".")) {
+    if (Array.isArray(currentValue)) {
+      const index = Number.parseInt(pathSegment, 10);
+      currentValue = Number.isNaN(index) ? undefined : currentValue[index];
+      continue;
+    }
+
+    if (currentValue === null || typeof currentValue !== "object") {
+      return undefined;
+    }
+
+    currentValue = (currentValue as Record<string, unknown>)[pathSegment];
+  }
+
+  return currentValue;
 }
 
 async function packPackage(packDirectoryPath: string): Promise<string> {
@@ -139,6 +194,10 @@ async function seedCodexSessions(homeDirectoryPath: string) {
       type: "user_message",
       message: "show me idle time",
     }),
+    createRecord(directTimes[0]!, "event_msg", {
+      type: "task_started",
+      turn_id: "qa-turn-1",
+    }),
     createRecord(directTimes[1]!, "event_msg", {
       type: "token_count",
       info: createTokenInfo(
@@ -191,6 +250,10 @@ async function seedCodexSessions(homeDirectoryPath: string) {
         },
       ),
     }),
+    createRecord(directTimes[4]!, "event_msg", {
+      type: "task_complete",
+      turn_id: "qa-turn-1",
+    }),
   ];
 
   const subagentSessionLines = [
@@ -215,6 +278,10 @@ async function seedCodexSessions(homeDirectoryPath: string) {
       cwd: "/tmp/idletime-qa-workspace",
       model: "gpt-5.4-mini",
       effort: "medium",
+    }),
+    createRecord(subagentTime, "event_msg", {
+      type: "task_started",
+      turn_id: "qa-subagent-turn-1",
     }),
     createRecord(new Date(subagentTime.getTime() + 15_000), "event_msg", {
       type: "token_count",
@@ -281,12 +348,11 @@ function createTokenInfo(totalUsage: object, lastUsage: object) {
 async function runShellCommand(
   commandText: string,
   environment: NodeJS.ProcessEnv,
-): Promise<string> {
-  const commandOutput = await runCommand(
+): Promise<{ stderr: string; stdout: string }> {
+  return runCommand(
     ["/bin/sh", "-lc", commandText],
     environment,
   );
-  return `${commandOutput.stdout}${commandOutput.stderr}`;
 }
 
 async function runCommand(

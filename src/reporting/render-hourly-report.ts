@@ -11,6 +11,7 @@ import {
   buildLogoSection,
   resolveLogoSectionWidth,
 } from "./render-logo-section.ts";
+import { buildAgentSection } from "./render-agent-section.ts";
 import { buildRhythmSection } from "./render-rhythm-section.ts";
 import { dim, measureVisibleTextWidth, paint } from "./render-theme.ts";
 import { renderPanel, renderSectionTitle } from "./render-shared-sections.ts";
@@ -71,6 +72,8 @@ function renderFullHourlyReport(
   lines.push(...buildLogoSection(logoSectionWidth, options));
   lines.push("");
   lines.push(...panelLines);
+  lines.push("");
+  lines.push(...buildAgentSection(report, options));
   lines.push("");
   lines.push(...buildRhythmSection(report, options));
   lines.push("");
@@ -164,6 +167,8 @@ function renderShareHourlyReport(
   lines.push(...buildLogoSection(logoSectionWidth, options));
   lines.push("");
   lines.push(...panelLines);
+  lines.push("");
+  lines.push(...buildAgentSection(report, options));
   lines.push("");
   lines.push(...buildRhythmSection(report, options));
   lines.push("");

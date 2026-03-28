@@ -36,6 +36,21 @@ export type AgentSpawnRequest = {
   reasoningEffort: string | null;
 };
 
+export type ProtocolTaskWindow = {
+  taskId: string;
+  sessionId: string;
+  parentSessionId: string | null;
+  sessionKind: SessionKind;
+  cwd: string;
+  turnId: string;
+  model: string | null;
+  reasoningEffort: string | null;
+  startedAt: Date;
+  lastActivityAt: Date;
+  completedAt: Date | null;
+  staleAfterMs: number;
+};
+
 export type ParsedSession = {
   sessionId: string;
   sourceFilePath: string;
@@ -50,6 +65,7 @@ export type ParsedSession = {
   userMessageTimestamps: Date[];
   turnAttributions: TurnAttribution[];
   agentSpawnRequests: AgentSpawnRequest[];
+  taskWindows: ProtocolTaskWindow[];
   primaryModel: string | null;
   primaryReasoningEffort: string | null;
 };

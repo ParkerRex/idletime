@@ -145,6 +145,20 @@ export function formatHourOfDay(
   }).format(timestamp);
 }
 
+export function formatAxisTimeLabel(
+  timestamp: Date,
+  reportWindow: Pick<ReportWindow, "timeZone">,
+): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: reportWindow.timeZone,
+    hour: "numeric",
+    hour12: true,
+  })
+    .format(timestamp)
+    .toLowerCase()
+    .replace(/\s+/g, "");
+}
+
 export function buildSparkline(values: number[]): string {
   const levels = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
   const maxValue = Math.max(...values, 0);

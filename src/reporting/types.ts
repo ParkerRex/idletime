@@ -20,7 +20,7 @@ export type ActivityMetrics = {
   directActivityBlocks: TimeInterval[];
   agentCoverageBlocks: TimeInterval[];
   agentOnlyBlocks: TimeInterval[];
-  perSubagentBlocks: TimeInterval[][];
+  perAgentTaskBlocks: TimeInterval[][];
   strictEngagementMs: number;
   directActivityMs: number;
   agentCoverageMs: number;
@@ -71,6 +71,46 @@ export type RenderOptions = {
   terminalWidth: number | null;
 };
 
+export const jsonReportSchemaVersion = 1 as const;
+
+export type JsonReportMode = "last24h" | "today" | "hourly" | "live";
+
+export type JsonTimeInterval = {
+  start: string;
+  end: string;
+};
+
+export type JsonReportWindow = {
+  label: string;
+  start: string;
+  end: string;
+  timeZone: string;
+};
+
+export type JsonSnapshotBase<TMode extends JsonReportMode, TCommand> = {
+  schemaVersion: typeof jsonReportSchemaVersion;
+  mode: TMode;
+  generatedAt: string;
+  command: TCommand;
+};
+
+export type JsonSummarySnapshotCommand = {
+  idleCutoffMs: number;
+  filters: SessionFilters;
+  groupBy: SummaryGroupBy[];
+  wakeWindow: WakeWindow | null;
+};
+
+export type JsonHourlySnapshotCommand = {
+  idleCutoffMs: number;
+  filters: SessionFilters;
+  wakeWindow: WakeWindow | null;
+};
+
+export type JsonLiveSnapshotCommand = {
+  filters: SessionFilters;
+};
+
 export type BestPlaque = {
   label: string;
   concurrentAgentsText: string;
@@ -106,8 +146,13 @@ export type HourlyBucket = {
   sessionCount: number;
 };
 
+export type AgentConcurrencySource =
+  | "task-window-adapter"
+  | "task-window-adapter-with-session-fallback";
+
 export type HourlyReport = {
   appliedFilters: SessionFilters;
+  agentConcurrencySource: AgentConcurrencySource;
   buckets: HourlyBucket[];
   hasWakeWindow: boolean;
   idleCutoffMs: number;
@@ -118,6 +163,33 @@ export type HourlyReport = {
     practicalBurn: number;
   };
   window: ReportWindow;
+};
+
+export type LiveReport = {
+  appliedFilters: SessionFilters;
+  doneRecentCount: number;
+  doneRecentWindowMs: number;
+  doneThisTurnCount: number;
+  observedAt: Date;
+  peakTodayCount: number;
+  recentConcurrencyValues: number[];
+  runningCount: number;
+  runningLocations: Array<{
+    cwd: string;
+    runningCount: number;
+  }>;
+  waitingThreads: Array<{
+    cwd: string;
+    sessionId: string;
+    waitDurationMs: number;
+  }>;
+  waitingOnUserCount: number;
+  waitingOnUserLocations: Array<{
+    cwd: string;
+    waitingCount: number;
+  }>;
+  scope: "global" | "workspace";
+  workspacePrefix: string | null;
 };
 
 export type SummaryReportQuery = {

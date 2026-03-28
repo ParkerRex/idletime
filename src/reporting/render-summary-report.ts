@@ -17,6 +17,7 @@ import {
   buildLogoSection,
   resolveLogoSectionWidth,
 } from "./render-logo-section.ts";
+import { buildAgentSection } from "./render-agent-section.ts";
 import {
   buildRhythmSection,
 } from "./render-rhythm-section.ts";
@@ -62,6 +63,8 @@ function renderFullSummaryReport(
   lines.push("");
   lines.push(...panelLines);
   if (hourlyReport) {
+    lines.push("");
+    lines.push(...buildAgentSection(hourlyReport, options));
     lines.push("");
     lines.push(...buildRhythmSection(hourlyReport, options));
   }
@@ -333,6 +336,8 @@ function renderShareSummaryReport(
   lines.push(...panelLines);
 
   if (hourlyReport) {
+    lines.push("");
+    lines.push(...buildAgentSection(hourlyReport, options));
     lines.push("");
     lines.push(...buildRhythmSection(hourlyReport, options));
   }

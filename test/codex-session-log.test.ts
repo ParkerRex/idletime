@@ -34,6 +34,11 @@ describe("codex session parsing", () => {
     expect(parsedSession.primaryReasoningEffort).toBe("xhigh");
     expect(parsedSession.agentSpawnRequests).toHaveLength(1);
     expect(parsedSession.agentSpawnRequests[0]?.agentType).toBe("reviewer");
+    expect(parsedSession.taskWindows).toHaveLength(1);
+    expect(parsedSession.taskWindows[0]?.turnId).toBe("turn-1");
+    expect(parsedSession.taskWindows[0]?.completedAt?.toISOString()).toBe(
+      "2026-03-26T19:40:11.000Z",
+    );
     expect(parsedSession.finalTokenUsage?.practicalBurn).toBe(1050);
     expect(tokenDeltaPoints[0]?.deltaUsage.practicalBurn).toBe(800);
     expect(tokenDeltaPoints[1]?.deltaUsage.practicalBurn).toBe(250);
@@ -56,6 +61,7 @@ describe("codex session parsing", () => {
       "fixture-direct-session-1",
     );
     expect(parsedSessions[1]?.primaryModel).toBe("gpt-5.4-mini");
+    expect(parsedSessions[1]?.taskWindows[0]?.turnId).toBe("subagent-turn-1");
   });
 
   test("uses last token usage when cumulative totals reset", () => {

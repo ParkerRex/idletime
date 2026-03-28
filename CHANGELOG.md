@@ -4,6 +4,27 @@ All notable changes to `idletime` will be documented in this file.
 
 The format is based on Keep a Changelog and this project currently tracks release-ready snapshots manually.
 
+## [Unreleased]
+
+## [0.2.0] - 2026-03-28
+
+### Added
+
+- Added a new `live` CLI mode that renders a global task scoreboard with `waiting on you`, `running`, recent concurrency, `running at`, `waiting at`, `top waiting`, `done this turn`, and `today peak`.
+- Added protocol-shaped transcript `taskWindows` so parser and reporting code can model Codex task lifecycle directly instead of only session activity.
+- Added a dedicated historical `Agents` section to the daily and hourly views.
+- Added a global `--json` snapshot mode for `last24h`, `today`, `hourly`, and `live`.
+- Added an explicit `refresh-bests` command so personal-record refresh and best-related notifications have a dedicated maintenance path.
+
+### Changed
+
+- Switched the shared historical time axis from grouped 24-hour numbers to actual clock labels such as `8am`, `12pm`, and `4pm`.
+- Historical agent concurrency now flows through the task-window adapter when transcript lifecycle records exist, with a legacy session-activity fallback for older subagent logs.
+- Non-TTY `idletime live` runs now emit a single snapshot and exit so the command can be used in scripts and validation.
+- `idletime live` now defaults to global scope and uses `--workspace-only` as the explicit repo filter.
+- `last24h` and `today` now stay on the fast read path and render cached `BEST` values only when the ledger already exists.
+- Installed-binary QA now covers JSON snapshots and the explicit `refresh-bests` flow.
+
 ## [0.1.3] - 2026-03-27
 
 ### Added
