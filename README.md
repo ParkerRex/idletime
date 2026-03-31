@@ -9,6 +9,7 @@ Local Bun CLI for Codex activity, token burn, visual 24-hour rhythm charts, and 
 - Where were the dead spots or awake idle gaps?
 - Which hours spiked in token burn?
 - How much of the day was direct work versus subagent runtime?
+- How much OpenAI 5-hour and weekly quota is left right now?
 
 ![idletime dashboard screenshot](./assets/idle-time-readme.png)
 
@@ -22,6 +23,7 @@ At a high level:
 - it treats real `user_message` arrivals as the strongest focus signal
 - it builds activity blocks by extending events forward by the idle cutoff
 - it computes hourly and summary burn from token-count deltas, not just final session totals
+- it reads live Codex rate limits from `codex app-server` and ties quota usage rows to the active OpenAI windows
 - it clips everything to the requested window so `last24h` means the actual last 24 hours
 
 That is why the dashboard can show both a fast visual story and defensible totals.
@@ -82,6 +84,7 @@ That shows:
 
 - A gold `BEST` plaque in the header for your top concurrent agents, top 24-hour raw burn, and top agent-sum record
 - A framed trailing-24h dashboard
+- A `Limits` section with live `5h remaining`, `week remaining`, `5h used`, and `week used` rows tied to OpenAI's current quota windows
 - A dedicated `Agents` section that charts concurrent child-task windows over the day
 - A `24h Rhythm` strip for `focus`, `active`, `quiet` or `idle`, and `burn`
 - `Spike Callouts` for the biggest burn hours

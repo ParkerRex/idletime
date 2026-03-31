@@ -1,6 +1,6 @@
-import { readCodexSessions } from "../codex-session-log/read-codex-sessions.ts";
 import type { BestMetricsLedger } from "../best-metrics/types.ts";
 import { readBestLedger } from "../best-metrics/read-best-ledger.ts";
+import { loadCodexLimitContext } from "../codex-limits/load-codex-limit-context.ts";
 import { resolveTrailingReportWindow } from "../report-window/resolve-report-window.ts";
 import { buildHourlyReport } from "../reporting/build-hourly-report.ts";
 import { buildBestPlaque } from "../reporting/render-best-plaque.ts";
@@ -8,6 +8,7 @@ import { buildSummaryReport } from "../reporting/build-summary-report.ts";
 import { renderSummaryReport } from "../reporting/render-summary-report.ts";
 import { createRenderOptions } from "../reporting/render-theme.ts";
 import type { HourlyReport, SummaryReport } from "../reporting/types.ts";
+import type { ReadCodexRateLimitsFn } from "../codex-limits/types.ts";
 import type { ParsedIdletimeCommand } from "./parse-idletime-command.ts";
 
 export type Last24hCommandResult = {
@@ -20,6 +21,8 @@ export async function buildLast24hCommandResult(
   command: ParsedIdletimeCommand,
   options: {
     now?: Date;
+    rateLimitEnv?: Record<string, string | undefined>;
+    readCodexRateLimits?: ReadCodexRateLimitsFn;
     sessionRootDirectory?: string;
     stateDirectory?: string;
   } = {},
@@ -29,17 +32,20 @@ export async function buildLast24hCommandResult(
     now: options.now,
   });
   const bestLedgerPromise = readBestLedger({ stateDirectory: options.stateDirectory });
-  const sessionsPromise = readCodexSessions({
-    windowStart: window.start,
-    windowEnd: window.end,
+  const codexLimitContextPromise = loadCodexLimitContext({
+    now: window.end,
+    rateLimitEnv: options.rateLimitEnv,
+    readRateLimits: options.readCodexRateLimits,
     sessionRootDirectory: options.sessionRootDirectory,
+    summaryWindowStart: window.start,
   });
-  const [bestLedger, sessionReadResult] = await Promise.all([
+  const [bestLedger, codexLimitContext] = await Promise.all([
     bestLedgerPromise,
-    sessionsPromise,
+    codexLimitContextPromise,
   ]);
-  const { sessions, warnings } = sessionReadResult;
+  const { codexLimitReport, sessions, warnings } = codexLimitContext;
   const summaryReport = buildSummaryReport(sessions, {
+    codexLimitReport,
     filters: command.filters,
     groupBy: command.groupBy,
     idleCutoffMs: command.idleCutoffMs,
@@ -66,6 +72,8 @@ export async function runLast24hCommand(
   command: ParsedIdletimeCommand,
   options: {
     now?: Date;
+    rateLimitEnv?: Record<string, string | undefined>;
+    readCodexRateLimits?: ReadCodexRateLimitsFn;
     sessionRootDirectory?: string;
     stateDirectory?: string;
   } = {},

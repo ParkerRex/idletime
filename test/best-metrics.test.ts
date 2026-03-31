@@ -606,6 +606,7 @@ describe("best metrics", () => {
       createDashboardCommand("last24h"),
       {
         now: observedAt,
+        readCodexRateLimits: createUnavailableRateLimitReader(observedAt),
         sessionRootDirectory,
         stateDirectory,
       },
@@ -640,6 +641,7 @@ describe("best metrics", () => {
 
     const renderedReport = await runTodayCommand(createDashboardCommand("today"), {
       now: observedAt,
+      readCodexRateLimits: createUnavailableRateLimitReader(observedAt),
       sessionRootDirectory,
       stateDirectory,
     });
@@ -742,6 +744,17 @@ function createDashboardCommand(
     versionRequested: false,
     wakeWindow: null,
   };
+}
+
+function createUnavailableRateLimitReader(now: Date) {
+  return async () => ({
+    availability: "unavailable" as const,
+    fetchedAt: now,
+    fiveHourWindow: null,
+    reason: "test unavailable",
+    source: "unavailable" as const,
+    weeklyWindow: null,
+  });
 }
 
 function createDashboardLedger(observedAt: Date): BestMetricsLedger {

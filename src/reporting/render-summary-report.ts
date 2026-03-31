@@ -24,7 +24,13 @@ import {
 import { renderSessionReadWarnings } from "./render-session-read-warnings.ts";
 import { renderPanel, renderSectionTitle } from "./render-shared-sections.ts";
 import { dim, measureVisibleTextWidth, paint } from "./render-theme.ts";
-import type { BestPlaque, HourlyReport, RenderOptions, SummaryReport } from "./types.ts";
+import type { LimitMetric } from "../codex-limits/types.ts";
+import type {
+  BestPlaque,
+  HourlyReport,
+  RenderOptions,
+  SummaryReport,
+} from "./types.ts";
 
 const summaryBarWidth = 18;
 
@@ -71,6 +77,8 @@ function renderFullSummaryReport(
     lines.push("");
     lines.push(...warningLines);
   }
+  lines.push("");
+  lines.push(...renderLimitsSection(report, options));
   if (hourlyReport) {
     lines.push("");
     lines.push(...buildAgentSection(hourlyReport, options));
@@ -352,6 +360,8 @@ function renderShareSummaryReport(
   }
 
   lines.push("");
+  lines.push(...renderLimitsSection(report, options));
+  lines.push("");
   lines.push(...renderSectionTitle("Snapshot", options));
   lines.push(
     renderSnapshotRow(
@@ -517,6 +527,245 @@ function buildBiggestStoryLine(
 
 function buildSupportFactsLine(report: SummaryReport): string {
   return `${report.sessionCounts.direct} direct / ${report.sessionCounts.subagent} subagent • ${report.metrics.peakConcurrentAgents} peak • ${formatCompactInteger(report.tokenTotals.practicalBurn)} burn`;
+}
+
+function renderLimitsSection(
+  report: SummaryReport,
+  options: RenderOptions,
+): string[] {
+  const lines: string[] = [];
+  const title = buildLimitsSectionTitle(report);
+  const codexLimitReport = report.codexLimitReport ?? null;
+
+  lines.push(...renderSectionTitle(title, options));
+
+  if (options.shareMode) {
+    lines.push(
+      renderCompactLimitUsageRow(
+        "5h",
+        codexLimitReport?.fiveHourRemaining ?? null,
+        codexLimitReport?.fiveHourWindowBurnTokens ?? null,
+        options,
+        "OpenAI 5h window",
+      ),
+    );
+    lines.push(
+      renderCompactLimitUsageRow(
+        "week",
+        codexLimitReport?.weeklyRemaining ?? null,
+        codexLimitReport?.weeklyWindowBurnTokens ?? null,
+        options,
+        "OpenAI weekly window",
+      ),
+    );
+    return lines;
+  }
+
+  lines.push(
+    renderLimitMetricRow(
+      "5h remaining",
+      codexLimitReport?.fiveHourRemaining ?? null,
+      options,
+      report.window.timeZone,
+      report.window.end,
+    ),
+  );
+  lines.push(
+    renderLimitMetricRow(
+      "week remaining",
+      codexLimitReport?.weeklyRemaining ?? null,
+      options,
+      report.window.timeZone,
+      report.window.end,
+    ),
+  );
+  lines.push(
+    renderLimitUsageRow(
+      "5h used",
+      codexLimitReport?.fiveHourRemaining ?? null,
+      codexLimitReport?.fiveHourWindowBurnTokens ?? null,
+      options,
+      "OpenAI 5h window",
+    ),
+  );
+  lines.push(
+    renderLimitUsageRow(
+      "week used",
+      codexLimitReport?.weeklyRemaining ?? null,
+      codexLimitReport?.weeklyWindowBurnTokens ?? null,
+      options,
+      "OpenAI weekly window",
+    ),
+  );
+
+  return lines;
+}
+
+function buildLimitsSectionTitle(report: SummaryReport): string {
+  return hasNarrowingFilters(report) ? "Limits (global)" : "Limits";
+}
+
+function hasNarrowingFilters(report: SummaryReport): boolean {
+  return Boolean(
+    report.appliedFilters.workspaceOnlyPrefix ||
+      report.appliedFilters.sessionKind ||
+      report.appliedFilters.model ||
+      report.appliedFilters.reasoningEffort,
+  );
+}
+
+function renderLimitMetricRow(
+  label: string,
+  metric: LimitMetric | null,
+  options: RenderOptions,
+  timeZone: string,
+  referenceTimestamp: Date,
+): string {
+  if (!metric || metric.kind === "unavailable") {
+    return renderMetricRow(
+      label,
+      0,
+      100,
+      "unavailable",
+      metric ? describeLimitUnavailableReason(metric.reason) : "quota unavailable",
+      "█",
+      "raw",
+      options,
+      "value",
+    );
+  }
+
+  return renderMetricRow(
+    label,
+    metric.remainingPercent,
+    100,
+    formatPercent(metric.remainingPercent),
+    `resets ${formatResetTimestamp(metric.resetsAt, timeZone, referenceTimestamp)}`,
+    "█",
+    "raw",
+    options,
+    "value",
+  );
+}
+
+function renderLimitUsageRow(
+  label: string,
+  metric: LimitMetric | null,
+  burnTokens: number | null,
+  options: RenderOptions,
+  detailLabel: string,
+): string {
+  const tokensText =
+    burnTokens === null ? "burn unavailable" : `${formatCompactInteger(burnTokens)} tokens`;
+  if (!metric || metric.kind === "unavailable") {
+    return renderMetricRow(
+      label,
+      0,
+      100,
+      "unavailable",
+      `${detailLabel}${metric ? ` ${describeLimitUnavailableReason(metric.reason)}` : ""} • ${tokensText}`,
+      "█",
+      "burn",
+      options,
+      "value",
+    );
+  }
+
+  return renderMetricRow(
+    label,
+    metric.usedPercent,
+    100,
+    formatPercent(metric.usedPercent),
+    `${detailLabel} • ${tokensText}`,
+    "█",
+    "burn",
+    options,
+    "value",
+  );
+}
+
+function renderCompactLimitUsageRow(
+  label: string,
+  metric: LimitMetric | null,
+  burnTokens: number | null,
+  options: RenderOptions,
+  detailLabel: string,
+): string {
+  const remainingText =
+    metric && metric.kind === "available"
+      ? formatPercent(metric.remainingPercent)
+      : "unavailable";
+  const usedText =
+    metric && metric.kind === "available"
+      ? `${formatPercent(metric.usedPercent)} used`
+      : "unavailable";
+  const tokensText =
+    burnTokens === null ? "burn unavailable" : `${formatCompactInteger(burnTokens)} tokens`;
+
+  return renderSnapshotRow(
+    label,
+    usedText,
+    `${remainingText} remaining • ${detailLabel} • ${tokensText}`,
+    "burn",
+    options,
+  );
+}
+
+function describeLimitUnavailableReason(
+  reason: Extract<LimitMetric, { kind: "unavailable" }>["reason"],
+): string {
+  switch (reason) {
+    case "fixture-missing":
+      return "fixture missing";
+    case "missing-rate-limit":
+      return "missing quota data";
+    case "probe-failed":
+      return "probe failed";
+    case "status-unavailable":
+      return "status unavailable";
+    default:
+      return "quota unavailable";
+  }
+}
+
+function formatPercent(value: number): string {
+  return `${value.toFixed(1)}%`;
+}
+
+function formatResetTimestamp(
+  timestamp: Date,
+  timeZone: string,
+  referenceTimestamp: Date,
+): string {
+  const sameLocalDay = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(timestamp) === new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(referenceTimestamp);
+
+  if (sameLocalDay) {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(timestamp);
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(timestamp);
 }
 
 function sumQuietMs(hourlyReport: HourlyReport): number {

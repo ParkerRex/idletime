@@ -54,6 +54,7 @@ export function buildSummaryReport(
             ),
             windowInterval,
           ),
+    codexLimitReport: query.codexLimitReport ?? null,
     directTokenTotals: sumTokenTotals(
       filteredSessions.filter((session) => session.kind === "direct"),
       windowInterval,

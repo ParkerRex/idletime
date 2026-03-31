@@ -3,6 +3,7 @@ import type {
   SessionKind,
   SessionReadWarning,
 } from "../codex-session-log/types.ts";
+import type { CodexLimitReport } from "../codex-limits/types.ts";
 import type { ReportWindow } from "../report-window/types.ts";
 
 export type TimeInterval = {
@@ -131,6 +132,7 @@ export type SummaryReport = {
   groupBreakdowns: SummaryBreakdown[];
   idleCutoffMs: number;
   metrics: ActivityMetrics;
+  codexLimitReport?: CodexLimitReport | null;
   sessionReadWarnings: SessionReadWarning[];
   sessionCounts: Record<SessionKind | "total", number>;
   tokenTotals: TokenTotals;
@@ -200,6 +202,7 @@ export type LiveReport = {
 };
 
 export type SummaryReportQuery = {
+  codexLimitReport?: CodexLimitReport | null;
   filters: SessionFilters;
   groupBy: SummaryGroupBy[];
   idleCutoffMs: number;

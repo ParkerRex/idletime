@@ -6,18 +6,25 @@ The format is based on Keep a Changelog and this project currently tracks releas
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-03-31
+
 ### Added
 
 - Added a TTY-only `idletime` launcher plus a dedicated `doctor` command so the CLI is easier to discover and diagnose on first run.
 - Added a guidance-first `idletime update` command with install-mode detection for Bun global, npm global, `npx`, `bunx`, source-tree, and unknown layouts.
+- Added live Codex quota visibility to the dashboard and JSON snapshot surfaces, including `5h remaining`, `week remaining`, `5h used`, and `week used`.
+- Added a dedicated `src/codex-limits/` feature folder, deterministic quota fixtures for QA, and spawned-binary regression coverage for the Codex app-server handshake.
 
 ### Changed
 
 - The top-level CLI now runs through a shared command registry and a single error boundary instead of scattered hand-written help and dispatch copy.
 - The publish workflow is now manual-only from `main`, verifies the requested version before release, and creates the GitHub release only after npm publish succeeds.
+- The limits rows now follow OpenAI's active 5-hour and weekly windows as truth instead of showing local-midnight or last-hour pace estimates.
 
 ### Fixed
 
+- Fixed the live Codex quota reader handshake so `account/rateLimits/read` resolves reliably against the real `codex app-server`.
+- Fixed quota-reader environment overrides so `CODEX_BINARY` and fixture-driven probes merge with `process.env` instead of dropping `PATH`.
 - Read-only report commands now skip malformed Codex session files with explicit warnings instead of failing the entire dashboard or JSON snapshot.
 - The release docs now point one-off Bun users at `bunx idletime@latest`, which matched the live `0.2.0` publish in clean temp-directory verification on March 30, 2026.
 - The README now documents the correct Bun global upgrade path: `bun add -g idletime@latest --force` instead of `bun update idletime`.

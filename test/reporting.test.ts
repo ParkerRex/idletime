@@ -27,6 +27,7 @@ import { renderHourlyReport } from "../src/reporting/render-hourly-report.ts";
 import { renderLiveReport } from "../src/reporting/render-live-report.ts";
 import { buildRhythmSection } from "../src/reporting/render-rhythm-section.ts";
 import { renderSummaryReport } from "../src/reporting/render-summary-report.ts";
+import type { CodexLimitReport } from "../src/codex-limits/types.ts";
 import type { SessionReadWarning } from "../src/codex-session-log/types.ts";
 import type {
   HourlyBucket,
@@ -393,6 +394,107 @@ describe("reporting", () => {
     expect(renderedReport).toContain("1 direct / 1 subagent");
   });
 
+  test("renders codex limits using active OpenAI window usage and remaining values", () => {
+    const fixture = createSnapshotSerializationFixture();
+    const globalSummaryReport = {
+      ...fixture.summaryReport,
+      appliedFilters: {
+        ...fixture.summaryReport.appliedFilters,
+        workspaceOnlyPrefix: "/tmp/codex-fixtures/demo-workspace",
+      },
+    };
+
+    const fullRenderedReport = renderSummaryReport(
+      globalSummaryReport,
+      {
+        colorEnabled: false,
+        shareMode: false,
+        terminalWidth: 80,
+      },
+      fixture.hourlyReport,
+    );
+    const shareRenderedReport = renderSummaryReport(
+      globalSummaryReport,
+      {
+        colorEnabled: false,
+        shareMode: true,
+        terminalWidth: 80,
+      },
+      fixture.hourlyReport,
+    );
+
+    expect(fullRenderedReport).toContain("Limits (global)");
+    expect(fullRenderedReport).toContain("5h remaining");
+    expect(fullRenderedReport).toContain("week remaining");
+    expect(fullRenderedReport).toContain("5h used");
+    expect(fullRenderedReport).toContain("week used");
+    expect(fullRenderedReport).toContain("41.0%");
+    expect(fullRenderedReport).toContain("76.0%");
+    expect(fullRenderedReport).toContain("59.0%");
+    expect(fullRenderedReport).toContain("24.0%");
+    expect(fullRenderedReport).toContain("586K tokens");
+    expect(fullRenderedReport).toContain("61K tokens");
+    expect(fullRenderedReport).toContain("OpenAI 5h window");
+    expect(fullRenderedReport).toContain("OpenAI weekly window");
+
+    expect(shareRenderedReport).toContain("Limits (global)");
+    expect(shareRenderedReport).toContain("5h");
+    expect(shareRenderedReport).toContain("week");
+    expect(shareRenderedReport).toContain("41.0% remaining");
+    expect(shareRenderedReport).toContain("76.0% remaining");
+    expect(shareRenderedReport).toContain("59.0% used");
+    expect(shareRenderedReport).toContain("24.0% used");
+  });
+
+  test("renders unavailable codex limits when no quota snapshot exists", () => {
+    const reportWindow = {
+      label: "unavailable-window",
+      start: new Date("2026-03-26T08:00:00-04:00"),
+      end: new Date("2026-03-26T22:00:00-04:00"),
+      timeZone: "America/New_York",
+    };
+    const summaryReport = buildSummaryReport(
+      [
+        createSession({
+          sessionId: "direct-main",
+          kind: "direct",
+          eventTimes: ["2026-03-26T09:00:00-04:00"],
+          userMessageTimes: ["2026-03-26T09:00:00-04:00"],
+          tokenPoints: [
+            createTokenPoint("2026-03-26T09:05:00-04:00", createUsage(100, 0, 0, 100)),
+          ],
+          usage: createUsage(100, 0, 0, 100),
+          model: "gpt-5.4",
+          reasoningEffort: "medium",
+        }),
+      ],
+      {
+        filters: {
+          workspaceOnlyPrefix: null,
+          sessionKind: null,
+          model: null,
+          reasoningEffort: null,
+        },
+        groupBy: [],
+        idleCutoffMs: parseDurationToMs("15m"),
+        wakeWindow: null,
+        window: reportWindow,
+      },
+    );
+
+    const renderedReport = renderSummaryReport(
+      summaryReport,
+      {
+        colorEnabled: false,
+        shareMode: false,
+        terminalWidth: 80,
+      },
+    );
+
+    expect(renderedReport).toContain("Limits");
+    expect(renderedReport).toContain("unavailable");
+  });
+
   test("builds and renders the live scoreboard from task windows", () => {
     const observedAt = new Date("2026-03-26T09:55:00-04:00");
     const liveReport = buildLiveReport(
@@ -642,6 +744,35 @@ describe("reporting", () => {
     expect(snapshot.summaryReport.metrics.strictEngagementMs).toBe(
       fixture.summaryReport.metrics.strictEngagementMs,
     );
+    expect(snapshot.summaryReport.codexLimitReport?.fetchedAt).toBe(
+      fixture.summaryReport.codexLimitReport?.fetchedAt.toISOString(),
+    );
+    expect(snapshot.summaryReport.codexLimitReport?.source).toBe("app-server");
+    const expectedFiveHourRemaining =
+      fixture.summaryReport.codexLimitReport?.fiveHourRemaining;
+    expect(expectedFiveHourRemaining?.kind).toBe("available");
+    if (!expectedFiveHourRemaining || expectedFiveHourRemaining.kind !== "available") {
+      throw new Error("Expected available five-hour rate limit fixture.");
+    }
+    expect(snapshot.summaryReport.codexLimitReport?.fiveHourRemaining).toEqual({
+      kind: "available",
+      usedPercent: 59,
+      remainingPercent: 41,
+      resetsAt: expectedFiveHourRemaining.resetsAt.toISOString(),
+      windowDurationMins: 300,
+    });
+    expect(snapshot.summaryReport.codexLimitReport?.fiveHourWindowBurnTokens).toBe(
+      61_000,
+    );
+    expect(snapshot.summaryReport.codexLimitReport?.weeklyWindowBurnTokens).toBe(
+      586_000,
+    );
+    expect(snapshot.summaryReport.codexLimitReport?.todayWeeklyBurn).toEqual({
+      kind: "estimated",
+      percentPoints: 3.2,
+      localBurnTokens: 18_400,
+      calibrationWindowBurnTokens: 586_000,
+    });
     expect(snapshot.summaryReport.wakeSummary?.wakeDurationMs).toBe(
       fixture.summaryReport.wakeSummary?.wakeDurationMs,
     );
@@ -681,6 +812,18 @@ describe("reporting", () => {
     expect(snapshot.summaryReport.tokenTotals.rawTotalTokens).toBe(
       fixture.summaryReport.tokenTotals.rawTotalTokens,
     );
+    expect(snapshot.summaryReport.codexLimitReport?.fiveHourWindowBurnTokens).toBe(
+      61_000,
+    );
+    expect(snapshot.summaryReport.codexLimitReport?.lastHourBurnTokens).toBe(
+      4_100,
+    );
+    expect(snapshot.summaryReport.codexLimitReport?.lastHourFiveHourBurn).toEqual({
+      kind: "estimated",
+      percentPoints: 7.1,
+      localBurnTokens: 4_100,
+      calibrationWindowBurnTokens: 61_000,
+    });
     expect(snapshot.summaryReport.wakeSummary?.awakeIdleMs).toBe(
       fixture.summaryReport.wakeSummary?.awakeIdleMs,
     );
@@ -827,6 +970,43 @@ function createUsage(
     reasoningOutputTokens: 0,
     totalTokens,
     practicalBurn: inputTokens - cachedInputTokens + outputTokens,
+  };
+}
+
+function createCodexLimitReport(): CodexLimitReport {
+  return {
+    fetchedAt: new Date("2026-03-26T10:02:00-04:00"),
+    source: "app-server",
+    fiveHourRemaining: {
+      kind: "available",
+      usedPercent: 59,
+      remainingPercent: 41,
+      resetsAt: new Date("2026-03-26T13:31:43-04:00"),
+      windowDurationMins: 300,
+    },
+    weeklyRemaining: {
+      kind: "available",
+      usedPercent: 24,
+      remainingPercent: 76,
+      resetsAt: new Date("2026-04-06T15:26:39-04:00"),
+      windowDurationMins: 10080,
+    },
+    fiveHourWindowBurnTokens: 61_000,
+    weeklyWindowBurnTokens: 586_000,
+    todayBurnTokens: 18_400,
+    lastHourBurnTokens: 4_100,
+    todayWeeklyBurn: {
+      kind: "estimated",
+      percentPoints: 3.2,
+      localBurnTokens: 18_400,
+      calibrationWindowBurnTokens: 586_000,
+    },
+    lastHourFiveHourBurn: {
+      kind: "estimated",
+      percentPoints: 7.1,
+      localBurnTokens: 4_100,
+      calibrationWindowBurnTokens: 61_000,
+    },
   };
 }
 
@@ -1003,6 +1183,7 @@ function createSnapshotSerializationFixture(
     wakeWindow: summaryCommand.wakeWindow,
     window: reportWindow,
   });
+  summaryReport.codexLimitReport = createCodexLimitReport();
   const hourlyReport = buildHourlyReport(sessions, {
     filters: sharedFilters,
     idleCutoffMs: hourlyCommand.idleCutoffMs,

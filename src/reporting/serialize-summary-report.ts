@@ -1,4 +1,9 @@
 import type { HourlyReport, SummaryBreakdown, SummaryBreakdownRow, SummaryReport } from "./types.ts";
+import type {
+  BurnEstimate,
+  CodexLimitReport,
+  LimitMetric,
+} from "../codex-limits/types.ts";
 import {
   jsonReportSchemaVersion,
   type JsonSnapshotBase,
@@ -43,6 +48,7 @@ export type SerializedSummaryReportV1 = {
   appliedFilters: SummaryReport["appliedFilters"];
   comparisonCutoffMs: number;
   comparisonMetrics: SerializedActivityMetricsV1;
+  codexLimitReport: SerializedCodexLimitReportV1 | null;
   directTokenTotals: SummaryReport["directTokenTotals"];
   groupBreakdowns: SerializedSummaryBreakdownV1[];
   idleCutoffMs: number;
@@ -69,6 +75,44 @@ export type SerializeSummarySnapshotInput = {
   mode: Extract<JsonReportMode, "last24h" | "today">;
   summaryReport: SummaryReport;
 };
+
+export type SerializedCodexLimitReportV1 = {
+  fetchedAt: string;
+  source: CodexLimitReport["source"];
+  fiveHourRemaining: SerializedLimitMetricV1;
+  fiveHourWindowBurnTokens: number;
+  weeklyRemaining: SerializedLimitMetricV1;
+  weeklyWindowBurnTokens: number;
+  todayBurnTokens: number;
+  lastHourBurnTokens: number;
+  todayWeeklyBurn: SerializedBurnEstimateV1;
+  lastHourFiveHourBurn: SerializedBurnEstimateV1;
+};
+
+export type SerializedLimitMetricV1 =
+  | {
+      kind: "available";
+      usedPercent: number;
+      remainingPercent: number;
+      resetsAt: string;
+      windowDurationMins: number;
+    }
+  | {
+      kind: "unavailable";
+      reason: Extract<LimitMetric, { kind: "unavailable" }>["reason"];
+    };
+
+export type SerializedBurnEstimateV1 =
+  | {
+      kind: "estimated";
+      percentPoints: number;
+      localBurnTokens: number;
+      calibrationWindowBurnTokens: number;
+    }
+  | {
+      kind: "unavailable";
+      reason: Extract<BurnEstimate, { kind: "unavailable" }>["reason"];
+    };
 
 export function serializeSummarySnapshot(
   input: SerializeSummarySnapshotInput,
@@ -106,6 +150,9 @@ function serializeSummaryReportPayload(
     comparisonMetrics: serializeActivityMetrics(
       summaryReport.comparisonMetrics,
     ),
+    codexLimitReport: summaryReport.codexLimitReport
+      ? serializeCodexLimitReport(summaryReport.codexLimitReport)
+      : null,
     directTokenTotals: { ...summaryReport.directTokenTotals },
     groupBreakdowns: summaryReport.groupBreakdowns.map(serializeSummaryBreakdown),
     idleCutoffMs: summaryReport.idleCutoffMs,
@@ -128,6 +175,62 @@ function serializeSummaryBreakdown(
   return {
     dimension: breakdown.dimension,
     rows: breakdown.rows.map(serializeSummaryBreakdownRow),
+  };
+}
+
+function serializeCodexLimitReport(
+  codexLimitReport: CodexLimitReport,
+): SerializedCodexLimitReportV1 {
+  return {
+    fetchedAt: codexLimitReport.fetchedAt.toISOString(),
+    source: codexLimitReport.source,
+    fiveHourRemaining: serializeLimitMetric(codexLimitReport.fiveHourRemaining),
+    fiveHourWindowBurnTokens: codexLimitReport.fiveHourWindowBurnTokens,
+    weeklyRemaining: serializeLimitMetric(codexLimitReport.weeklyRemaining),
+    weeklyWindowBurnTokens: codexLimitReport.weeklyWindowBurnTokens,
+    todayBurnTokens: codexLimitReport.todayBurnTokens,
+    lastHourBurnTokens: codexLimitReport.lastHourBurnTokens,
+    todayWeeklyBurn: serializeBurnEstimate(codexLimitReport.todayWeeklyBurn),
+    lastHourFiveHourBurn: serializeBurnEstimate(
+      codexLimitReport.lastHourFiveHourBurn,
+    ),
+  };
+}
+
+function serializeLimitMetric(
+  metric: LimitMetric,
+): SerializedLimitMetricV1 {
+  if (metric.kind === "unavailable") {
+    return {
+      kind: "unavailable",
+      reason: metric.reason,
+    };
+  }
+
+  return {
+    kind: "available",
+    usedPercent: metric.usedPercent,
+    remainingPercent: metric.remainingPercent,
+    resetsAt: metric.resetsAt.toISOString(),
+    windowDurationMins: metric.windowDurationMins,
+  };
+}
+
+function serializeBurnEstimate(
+  estimate: BurnEstimate,
+): SerializedBurnEstimateV1 {
+  if (estimate.kind === "unavailable") {
+    return {
+      kind: "unavailable",
+      reason: estimate.reason,
+    };
+  }
+
+  return {
+    kind: "estimated",
+    percentPoints: estimate.percentPoints,
+    localBurnTokens: estimate.localBurnTokens,
+    calibrationWindowBurnTokens: estimate.calibrationWindowBurnTokens,
   };
 }
 

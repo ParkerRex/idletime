@@ -159,6 +159,7 @@ async function packPackage(packDirectoryPath: string): Promise<string> {
 }
 
 async function seedCodexSessions(homeDirectoryPath: string) {
+  await writeQuotaFixture(homeDirectoryPath);
   const now = new Date();
   const millisecondsSinceStartOfDay =
     now.getHours() * 60 * 60 * 1000 +
@@ -295,6 +296,26 @@ async function seedCodexSessions(homeDirectoryPath: string) {
 
   await writeSessionFile(homeDirectoryPath, directTimes[0]!, "qa-direct.jsonl", directSessionLines);
   await writeSessionFile(homeDirectoryPath, subagentTime, "qa-subagent.jsonl", subagentSessionLines);
+}
+
+async function writeQuotaFixture(homeDirectoryPath: string) {
+  const quotaFixturePath = join(homeDirectoryPath, "codex-rate-limits.json");
+  await writeFile(
+    quotaFixturePath,
+    JSON.stringify({
+      fiveHourWindow: {
+        resetsAt: "2026-03-31T17:31:43.000Z",
+        usedPercent: 59,
+        windowDurationMins: 300,
+      },
+      weeklyWindow: {
+        resetsAt: "2026-04-06T19:26:39.000Z",
+        usedPercent: 24,
+        windowDurationMins: 10080,
+      },
+    }),
+    "utf8",
+  );
 }
 
 async function writeSessionFile(
