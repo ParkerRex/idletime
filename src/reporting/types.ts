@@ -1,4 +1,8 @@
-import type { ParsedSession, SessionKind } from "../codex-session-log/types.ts";
+import type {
+  ParsedSession,
+  SessionKind,
+  SessionReadWarning,
+} from "../codex-session-log/types.ts";
 import type { ReportWindow } from "../report-window/types.ts";
 
 export type TimeInterval = {
@@ -127,6 +131,7 @@ export type SummaryReport = {
   groupBreakdowns: SummaryBreakdown[];
   idleCutoffMs: number;
   metrics: ActivityMetrics;
+  sessionReadWarnings: SessionReadWarning[];
   sessionCounts: Record<SessionKind | "total", number>;
   tokenTotals: TokenTotals;
   wakeSummary: WakeWindowSummary | null;
@@ -162,6 +167,7 @@ export type HourlyReport = {
     engagedMs: number;
     practicalBurn: number;
   };
+  sessionReadWarnings: SessionReadWarning[];
   window: ReportWindow;
 };
 
@@ -178,6 +184,7 @@ export type LiveReport = {
     cwd: string;
     runningCount: number;
   }>;
+  sessionReadWarnings: SessionReadWarning[];
   waitingThreads: Array<{
     cwd: string;
     sessionId: string;
@@ -196,6 +203,7 @@ export type SummaryReportQuery = {
   filters: SessionFilters;
   groupBy: SummaryGroupBy[];
   idleCutoffMs: number;
+  sessionReadWarnings?: SessionReadWarning[];
   wakeWindow: WakeWindow | null;
   window: ReportWindow;
 };
@@ -203,6 +211,7 @@ export type SummaryReportQuery = {
 export type HourlyReportQuery = {
   filters: SessionFilters;
   idleCutoffMs: number;
+  sessionReadWarnings?: SessionReadWarning[];
   wakeWindow: WakeWindow | null;
   window: ReportWindow;
 };

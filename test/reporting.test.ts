@@ -23,9 +23,11 @@ import {
 import { buildBestPlaque } from "../src/reporting/render-best-plaque.ts";
 import { buildAgentSection } from "../src/reporting/render-agent-section.ts";
 import { buildLogoSection } from "../src/reporting/render-logo-section.ts";
+import { renderHourlyReport } from "../src/reporting/render-hourly-report.ts";
 import { renderLiveReport } from "../src/reporting/render-live-report.ts";
 import { buildRhythmSection } from "../src/reporting/render-rhythm-section.ts";
 import { renderSummaryReport } from "../src/reporting/render-summary-report.ts";
+import type { SessionReadWarning } from "../src/codex-session-log/types.ts";
 import type {
   HourlyBucket,
   HourlyReport,
@@ -551,6 +553,66 @@ describe("reporting", () => {
     expect(renderedLiveReport.split("\n")[0]?.length).toBeLessThan(80);
   });
 
+  test("carries session read warnings through read-only report surfaces", () => {
+    const warning: SessionReadWarning = {
+      kind: "malformed-session-file",
+      sourceFilePath:
+        "/tmp/codex-fixtures/demo-workspace/2026/03/26/malformed-session.jsonl",
+      message: "expected session_meta record at line 1",
+    };
+    const fixture = createSnapshotSerializationFixture([warning]);
+    const renderOptions = {
+      colorEnabled: false,
+      shareMode: false,
+      terminalWidth: 80,
+    };
+
+    expect(fixture.summaryReport.sessionReadWarnings).toEqual([warning]);
+    expect(fixture.hourlyReport.sessionReadWarnings).toEqual([warning]);
+    expect(fixture.liveReport.sessionReadWarnings).toEqual([warning]);
+    expect(
+      renderSummaryReport(
+        fixture.summaryReport,
+        renderOptions,
+        fixture.hourlyReport,
+      ),
+    ).toContain("malformed session file");
+    expect(renderHourlyReport(fixture.hourlyReport, renderOptions)).toContain(
+      "malformed session file",
+    );
+    expect(renderLiveReport(fixture.liveReport, renderOptions)).toContain(
+      "malformed session file",
+    );
+
+    const summarySnapshot = JSON.parse(
+      serializeSummarySnapshot({
+        command: fixture.summaryCommand,
+        generatedAt: fixture.generatedAt,
+        hourlyReport: fixture.hourlyReport,
+        mode: "last24h",
+        summaryReport: fixture.summaryReport,
+      }),
+    ) as SerializedSummarySnapshotV1;
+    const hourlySnapshot = JSON.parse(
+      serializeHourlySnapshot({
+        command: fixture.hourlyCommand,
+        generatedAt: fixture.generatedAt,
+        hourlyReport: fixture.hourlyReport,
+      }),
+    ) as SerializedHourlySnapshotV1;
+    const liveSnapshot = JSON.parse(
+      serializeLiveSnapshot({
+        command: fixture.liveCommand,
+        generatedAt: fixture.generatedAt,
+        liveReport: fixture.liveReport,
+      }),
+    ) as SerializedLiveSnapshotV1;
+
+    expect(summarySnapshot.summaryReport.sessionReadWarnings).toEqual([warning]);
+    expect(hourlySnapshot.hourlyReport.sessionReadWarnings).toEqual([warning]);
+    expect(liveSnapshot.liveReport.sessionReadWarnings).toEqual([warning]);
+  });
+
   test("serializes a last24h snapshot with ISO timestamps and exact values", () => {
     const fixture = createSnapshotSerializationFixture();
     const serializedSnapshot = serializeSummarySnapshot({
@@ -817,35 +879,38 @@ function createRhythmReportFixture(): HourlyReport {
     };
   });
 
-  return {
-    appliedFilters: {
-      workspaceOnlyPrefix: null,
-      sessionKind: null,
-      model: null,
-      reasoningEffort: null,
-    },
-    agentConcurrencySource: "task-window-adapter",
-    buckets,
-    hasWakeWindow: false,
-    idleCutoffMs: parseDurationToMs("15m"),
-    maxValues: {
-      agentOnlyMs: Math.max(...buckets.map((bucket) => bucket.agentOnlyMs)),
-      directActivityMs: Math.max(
-        ...buckets.map((bucket) => bucket.directActivityMs),
-      ),
-      engagedMs: Math.max(...buckets.map((bucket) => bucket.engagedMs)),
-      practicalBurn: Math.max(...buckets.map((bucket) => bucket.practicalBurn)),
-    },
-    window: {
-      label: "synthetic-24h",
-      start,
-      end: new Date(start.getTime() + 24 * 3_600_000),
-      timeZone: "America/New_York",
+    return {
+      appliedFilters: {
+        workspaceOnlyPrefix: null,
+        sessionKind: null,
+        model: null,
+        reasoningEffort: null,
+      },
+      agentConcurrencySource: "task-window-adapter",
+      buckets,
+      hasWakeWindow: false,
+      idleCutoffMs: parseDurationToMs("15m"),
+      maxValues: {
+        agentOnlyMs: Math.max(...buckets.map((bucket) => bucket.agentOnlyMs)),
+        directActivityMs: Math.max(
+          ...buckets.map((bucket) => bucket.directActivityMs),
+        ),
+        engagedMs: Math.max(...buckets.map((bucket) => bucket.engagedMs)),
+        practicalBurn: Math.max(...buckets.map((bucket) => bucket.practicalBurn)),
+      },
+      sessionReadWarnings: [],
+      window: {
+        label: "synthetic-24h",
+        start,
+        end: new Date(start.getTime() + 24 * 3_600_000),
+        timeZone: "America/New_York",
     },
   };
 }
 
-function createSnapshotSerializationFixture(): {
+function createSnapshotSerializationFixture(
+  sessionReadWarnings: SessionReadWarning[] = [],
+): {
   generatedAt: Date;
   hourlyCommand: JsonHourlySnapshotCommand;
   hourlyReport: HourlyReport;
@@ -934,12 +999,14 @@ function createSnapshotSerializationFixture(): {
     filters: sharedFilters,
     groupBy: summaryCommand.groupBy,
     idleCutoffMs: summaryCommand.idleCutoffMs,
+    sessionReadWarnings,
     wakeWindow: summaryCommand.wakeWindow,
     window: reportWindow,
   });
   const hourlyReport = buildHourlyReport(sessions, {
     filters: sharedFilters,
     idleCutoffMs: hourlyCommand.idleCutoffMs,
+    sessionReadWarnings,
     wakeWindow: hourlyCommand.wakeWindow,
     window: reportWindow,
   });
@@ -1043,6 +1110,7 @@ function createSnapshotSerializationFixture(): {
     {
       filters: sharedFilters,
       observedAt,
+      sessionReadWarnings,
     },
   );
 

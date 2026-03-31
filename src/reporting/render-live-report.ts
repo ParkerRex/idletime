@@ -7,6 +7,7 @@ import {
   shortenPath,
 } from "./report-formatting.ts";
 import { buildLogoSection } from "./render-logo-section.ts";
+import { renderSessionReadWarnings } from "./render-session-read-warnings.ts";
 import { renderPanel } from "./render-shared-sections.ts";
 import { measureVisibleTextWidth, paint } from "./render-theme.ts";
 import type { LiveReport, RenderOptions } from "./types.ts";
@@ -38,11 +39,19 @@ export function renderLiveReport(
     options,
   );
   const panelWidth = measureVisibleTextWidth(headerLines[0] ?? "");
+  const warningLines = renderSessionReadWarnings(
+    report.sessionReadWarnings,
+    options,
+  );
   const lines: string[] = [];
 
   lines.push(...buildLogoSection(panelWidth, options));
   lines.push("");
   lines.push(...headerLines);
+  if (warningLines.length > 0) {
+    lines.push("");
+    lines.push(...warningLines);
+  }
   lines.push("");
   lines.push(...buildScoreboardSection(report, options));
 

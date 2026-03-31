@@ -1,4 +1,5 @@
 import type { ReportWindow } from "../report-window/types.ts";
+import type { SessionReadWarning } from "../codex-session-log/types.ts";
 import type {
   ActivityMetrics,
   JsonReportWindow,
@@ -103,4 +104,14 @@ export function serializeWakeWindowSummary(
     awakeIdlePercentage: wakeWindowSummary.awakeIdlePercentage,
     longestIdleGapMs: wakeWindowSummary.longestIdleGapMs,
   };
+}
+
+export function serializeSessionReadWarnings(
+  warnings: SessionReadWarning[],
+): SessionReadWarning[] {
+  return warnings.map((warning) => ({
+    kind: warning.kind,
+    sourceFilePath: warning.sourceFilePath,
+    message: warning.message,
+  }));
 }

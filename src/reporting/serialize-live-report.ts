@@ -8,6 +8,7 @@ import {
 import {
   serializeIsoTimestamp,
   serializeSessionFilters,
+  serializeSessionReadWarnings,
   stringifyJsonSnapshot,
 } from "./serialize-json-common.ts";
 
@@ -24,6 +25,7 @@ export type SerializedLiveReportV1 = {
     cwd: string;
     runningCount: number;
   }>;
+  sessionReadWarnings: LiveReport["sessionReadWarnings"];
   waitingThreads: Array<{
     cwd: string;
     sessionId: string;
@@ -67,6 +69,9 @@ export function serializeLiveReportPayload(
       cwd: location.cwd,
       runningCount: location.runningCount,
     })),
+    sessionReadWarnings: serializeSessionReadWarnings(
+      liveReport.sessionReadWarnings,
+    ),
     waitingThreads: liveReport.waitingThreads.map((waitingThread) => ({
       cwd: waitingThread.cwd,
       sessionId: waitingThread.sessionId,

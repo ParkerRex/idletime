@@ -9,6 +9,7 @@ import {
 import {
   serializeReportWindow,
   serializeSessionFilters,
+  serializeSessionReadWarnings,
   serializeTimeInterval,
   stringifyJsonSnapshot,
 } from "./serialize-json-common.ts";
@@ -38,6 +39,7 @@ export type SerializedHourlyReportV1 = {
     engagedMs: number;
     practicalBurn: number;
   };
+  sessionReadWarnings: HourlyReport["sessionReadWarnings"];
   window: JsonReportWindow;
 };
 
@@ -69,6 +71,9 @@ export function serializeHourlyReportPayload(
       engagedMs: hourlyReport.maxValues.engagedMs,
       practicalBurn: hourlyReport.maxValues.practicalBurn,
     },
+    sessionReadWarnings: serializeSessionReadWarnings(
+      hourlyReport.sessionReadWarnings,
+    ),
     window: serializeReportWindow(hourlyReport.window),
   };
 }

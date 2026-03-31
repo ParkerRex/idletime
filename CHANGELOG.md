@@ -6,6 +6,22 @@ The format is based on Keep a Changelog and this project currently tracks releas
 
 ## [Unreleased]
 
+### Added
+
+- Added a TTY-only `idletime` launcher plus a dedicated `doctor` command so the CLI is easier to discover and diagnose on first run.
+- Added a guidance-first `idletime update` command with install-mode detection for Bun global, npm global, `npx`, `bunx`, source-tree, and unknown layouts.
+
+### Changed
+
+- The top-level CLI now runs through a shared command registry and a single error boundary instead of scattered hand-written help and dispatch copy.
+- The publish workflow is now manual-only from `main`, verifies the requested version before release, and creates the GitHub release only after npm publish succeeds.
+
+### Fixed
+
+- Read-only report commands now skip malformed Codex session files with explicit warnings instead of failing the entire dashboard or JSON snapshot.
+- The release docs now point one-off Bun users at `bunx idletime@latest`, which matched the live `0.2.0` publish in clean temp-directory verification on March 30, 2026.
+- The README now documents the correct Bun global upgrade path: `bun add -g idletime@latest --force` instead of `bun update idletime`.
+
 ## [0.2.0] - 2026-03-28
 
 ### Added

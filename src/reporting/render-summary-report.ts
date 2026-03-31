@@ -21,6 +21,7 @@ import { buildAgentSection } from "./render-agent-section.ts";
 import {
   buildRhythmSection,
 } from "./render-rhythm-section.ts";
+import { renderSessionReadWarnings } from "./render-session-read-warnings.ts";
 import { renderPanel, renderSectionTitle } from "./render-shared-sections.ts";
 import { dim, measureVisibleTextWidth, paint } from "./render-theme.ts";
 import type { BestPlaque, HourlyReport, RenderOptions, SummaryReport } from "./types.ts";
@@ -58,10 +59,18 @@ function renderFullSummaryReport(
   );
   const panelWidth = measureVisibleTextWidth(panelLines[0] ?? "");
   const logoSectionWidth = resolveLogoSectionWidth(panelWidth, options);
+  const warningLines = renderSessionReadWarnings(
+    report.sessionReadWarnings,
+    options,
+  );
 
   lines.push(...buildLogoSection(logoSectionWidth, options, bestPlaque));
   lines.push("");
   lines.push(...panelLines);
+  if (warningLines.length > 0) {
+    lines.push("");
+    lines.push(...warningLines);
+  }
   if (hourlyReport) {
     lines.push("");
     lines.push(...buildAgentSection(hourlyReport, options));

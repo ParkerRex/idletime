@@ -46,6 +46,7 @@ export function buildHourlyReport(
       engagedMs: Math.max(...buckets.map((bucket) => bucket.engagedMs), 0),
       practicalBurn: Math.max(...buckets.map((bucket) => bucket.practicalBurn), 0),
     },
+    sessionReadWarnings: query.sessionReadWarnings ?? [],
     window: query.window,
   };
 }

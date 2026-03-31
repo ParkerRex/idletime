@@ -13,6 +13,7 @@ import {
 } from "./render-logo-section.ts";
 import { buildAgentSection } from "./render-agent-section.ts";
 import { buildRhythmSection } from "./render-rhythm-section.ts";
+import { renderSessionReadWarnings } from "./render-session-read-warnings.ts";
 import { dim, measureVisibleTextWidth, paint } from "./render-theme.ts";
 import { renderPanel, renderSectionTitle } from "./render-shared-sections.ts";
 import { buildSpikeSection } from "./render-spike-section.ts";
@@ -68,10 +69,18 @@ function renderFullHourlyReport(
   ], options);
   const panelWidth = measureVisibleTextWidth(panelLines[0] ?? "");
   const logoSectionWidth = resolveLogoSectionWidth(panelWidth, options);
+  const warningLines = renderSessionReadWarnings(
+    report.sessionReadWarnings,
+    options,
+  );
 
   lines.push(...buildLogoSection(logoSectionWidth, options));
   lines.push("");
   lines.push(...panelLines);
+  if (warningLines.length > 0) {
+    lines.push("");
+    lines.push(...warningLines);
+  }
   lines.push("");
   lines.push(...buildAgentSection(report, options));
   lines.push("");

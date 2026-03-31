@@ -11,6 +11,7 @@ import {
   serializeActivityMetrics,
   serializeReportWindow,
   serializeSessionFilters,
+  serializeSessionReadWarnings,
   serializeTimeInterval,
   serializeWakeWindowSummary,
   stringifyJsonSnapshot,
@@ -46,6 +47,7 @@ export type SerializedSummaryReportV1 = {
   groupBreakdowns: SerializedSummaryBreakdownV1[];
   idleCutoffMs: number;
   metrics: SerializedActivityMetricsV1;
+  sessionReadWarnings: SummaryReport["sessionReadWarnings"];
   sessionCounts: SummaryReport["sessionCounts"];
   tokenTotals: SummaryReport["tokenTotals"];
   wakeSummary: SerializedWakeWindowSummaryV1 | null;
@@ -108,6 +110,9 @@ function serializeSummaryReportPayload(
     groupBreakdowns: summaryReport.groupBreakdowns.map(serializeSummaryBreakdown),
     idleCutoffMs: summaryReport.idleCutoffMs,
     metrics: serializeActivityMetrics(summaryReport.metrics),
+    sessionReadWarnings: serializeSessionReadWarnings(
+      summaryReport.sessionReadWarnings,
+    ),
     sessionCounts: { ...summaryReport.sessionCounts },
     tokenTotals: { ...summaryReport.tokenTotals },
     wakeSummary: summaryReport.wakeSummary

@@ -1,15 +1,8 @@
 import packageJson from "../../package.json";
-import { serializeHourlySnapshot } from "../reporting/serialize-hourly-report.ts";
-import { serializeLiveSnapshot } from "../reporting/serialize-live-report.ts";
-import { serializeSummarySnapshot } from "../reporting/serialize-summary-report.ts";
-import type {
-  JsonHourlySnapshotCommand,
-  JsonLiveSnapshotCommand,
-  JsonSummarySnapshotCommand,
-} from "../reporting/types.ts";
+import { reportCliError } from "./cli-errors.ts";
+import { renderCliHelpText } from "./command-registry.ts";
 import {
   parseIdletimeCommand,
-  renderHelpText,
   type ParsedIdletimeCommand,
 } from "./parse-idletime-command.ts";
 import {
@@ -20,28 +13,113 @@ import {
   buildLast24hCommandResult,
   runLast24hCommand,
 } from "./run-last24h-command.ts";
+import { runLauncherCommand } from "./run-launcher-command.ts";
 import { runLiveCommand, takeLiveSnapshot } from "./run-live-command.ts";
+import { runDoctorCommand } from "./run-doctor-command.ts";
 import { runRefreshBestsCommand } from "./run-refresh-bests-command.ts";
+import { runUpdateCommand } from "./run-update-command.ts";
 import {
   buildTodayCommandResult,
   runTodayCommand,
 } from "./run-today-command.ts";
+import {
+  serializeHourlySnapshot,
+} from "../reporting/serialize-hourly-report.ts";
+import {
+  serializeLiveSnapshot,
+} from "../reporting/serialize-live-report.ts";
+import {
+  serializeSummarySnapshot,
+} from "../reporting/serialize-summary-report.ts";
+import type {
+  JsonHourlySnapshotCommand,
+  JsonLiveSnapshotCommand,
+  JsonSummarySnapshotCommand,
+} from "../reporting/types.ts";
 
 export async function runIdletimeCli(argv: string[]): Promise<void> {
-  const command = parseIdletimeCommand(argv);
+  try {
+    const command = parseIdletimeCommand(argv);
 
-  if (command.helpRequested) {
-    console.log(renderHelpText());
+    if (command.helpRequested) {
+      console.log(renderCliHelpText());
+      return;
+    }
+
+    if (command.versionRequested) {
+      console.log(packageJson.version);
+      return;
+    }
+
+    if (shouldOpenLauncher(argv)) {
+      await runLauncherSelection(await runLauncherCommand(), command);
+      return;
+    }
+
+    await runCommand(command);
+  } catch (error) {
+    reportCliError(error);
+  }
+}
+
+async function runLauncherSelection(
+  selection:
+  | "doctor"
+  | "help"
+  | "quit"
+  | "version"
+  | "hourly"
+  | "last24h"
+  | "live"
+  | "refresh-bests"
+  | "update"
+  | "today",
+  command: ParsedIdletimeCommand,
+): Promise<void> {
+  if (selection === "quit") {
     return;
   }
 
-  if (command.versionRequested) {
+  if (selection === "help") {
+    console.log(renderCliHelpText());
+    return;
+  }
+
+  if (selection === "version") {
     console.log(packageJson.version);
+    return;
+  }
+
+  if (selection === "doctor") {
+    console.log(runDoctorCommand());
+    return;
+  }
+
+  if (selection === "update") {
+    console.log(runUpdateCommand());
+    return;
+  }
+
+  const selectedCommandName = selection as ParsedIdletimeCommand["commandName"];
+  await runCommand({
+    ...command,
+    commandName: selectedCommandName,
+  });
+}
+
+async function runCommand(command: ParsedIdletimeCommand): Promise<void> {
+  if (command.commandName === "doctor") {
+    console.log(runDoctorCommand());
     return;
   }
 
   if (command.commandName === "refresh-bests") {
     console.log(await runRefreshBestsCommand());
+    return;
+  }
+
+  if (command.commandName === "update") {
+    console.log(runUpdateCommand());
     return;
   }
 
@@ -117,6 +195,10 @@ async function buildJsonOutput(command: ParsedIdletimeCommand): Promise<string> 
     mode: "last24h",
     summaryReport: commandResult.summaryReport,
   });
+}
+
+function shouldOpenLauncher(argv: string[]): boolean {
+  return argv.length === 0 && process.stdout.isTTY && process.stdin.isTTY;
 }
 
 function buildJsonSummarySnapshotCommand(

@@ -37,22 +37,38 @@ bun install
 After publish, expected install paths are:
 
 ```bash
-npm install -g idletime
+npm install -g idletime@latest
 ```
 
 ```bash
-bun add -g idletime
+bun add -g idletime@latest
 ```
+
+To update an existing Bun global install to the latest published version:
+
+```bash
+bun add -g idletime@latest --force
+```
+
+Use that instead of `bun update idletime`. In local verification on March 31, 2026, `bun update idletime` left the global `idletime` binary on `0.1.2`, while `bun add -g idletime@latest --force` updated the Bun global install to `0.2.0`.
 
 Or run it without a global install:
 
 ```bash
-npx idletime --help
+npx idletime@latest --help
 ```
 
 ```bash
-bunx idletime --help
+bunx idletime@latest --help
 ```
+
+To see the exact supported next step for the current install mode, run:
+
+```bash
+idletime update
+```
+
+It prints the Bun or npm global update command when the binary was installed that way, and it explains when there is no persistent package to update.
 
 ## Start Here
 
@@ -316,10 +332,13 @@ This repo now includes:
 What it does:
 
 - `ci.yml` runs on pushes to `dev` and `main`, plus pull requests
-- `publish.yml` runs on manual dispatch or GitHub release publish
+- `publish.yml` runs only on manual dispatch from `main`
+- requires the requested version to match `package.json`
+- fails before publish when the npm version, Git tag, or GitHub release already exists
 - installs Bun and Node on a GitHub-hosted runner
 - runs `bun run check:release`
 - publishes to npm with `npm publish --access public --provenance`
+- creates the GitHub release only after npm publish succeeds
 
 What you need in GitHub:
 
@@ -331,7 +350,8 @@ What you need in GitHub:
 
 - The published binary is `idletime`.
 - The package is prepared for public publish on npm and Bun.
-- The package name `idletime` currently returns an npm `E404` with an unpublished notice, so it appears reclaimable as of March 27, 2026, but you should still verify availability again immediately before the first publish.
+- Use `bunx idletime@latest` for one-off runs. In a clean temp directory on March 30, 2026, `bunx idletime` resolved `0.1.2` while `bunx idletime@latest` resolved `0.2.0`.
+- Use `idletime update` to print the supported update command for the current install mode.
 - `package.json` currently uses `license: "UNLICENSED"` as a deliberate placeholder. Choose the real license you want before the first public release.
 
 ## npm Site Checklist
@@ -375,4 +395,5 @@ Important:
 - add the actual GitHub repo metadata to `package.json`
 - run `bun run check:release`
 - recheck `npm view idletime version`
-- either publish from GitHub Releases or run the workflow manually
+- run the `Publish idletime` workflow manually from `main` with the exact `package.json` version
+- let the workflow create the GitHub release after npm publish succeeds

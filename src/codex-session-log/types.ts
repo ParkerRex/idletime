@@ -70,6 +70,17 @@ export type ParsedSession = {
   primaryReasoningEffort: string | null;
 };
 
+export type SessionReadWarning = {
+  kind: "malformed-session-file";
+  sourceFilePath: string;
+  message: string;
+};
+
+export type SessionReadResult = {
+  sessions: ParsedSession[];
+  warnings: SessionReadWarning[];
+};
+
 export type SessionReadOptions = {
   sessionRootDirectory?: string;
   windowStart: Date;

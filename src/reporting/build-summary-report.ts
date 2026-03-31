@@ -66,6 +66,7 @@ export function buildSummaryReport(
     ),
     idleCutoffMs: query.idleCutoffMs,
     metrics,
+    sessionReadWarnings: query.sessionReadWarnings ?? [],
     sessionCounts,
     tokenTotals: sumTokenTotals(filteredSessions, windowInterval),
     wakeSummary: query.wakeWindow

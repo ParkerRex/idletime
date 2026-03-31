@@ -99,15 +99,17 @@ export async function takeLiveSnapshot(
     durationMs: 24 * 60 * 60 * 1000,
     now: observedAt,
   });
-  const sessions = await readCodexSessions({
+  const sessionReadResult = await readCodexSessions({
     windowStart: recentWindow.start,
     windowEnd: observedAt,
     sessionRootDirectory: options.sessionRootDirectory,
   });
+  const { sessions, warnings } = sessionReadResult;
 
   return buildLiveReport(sessions, {
     filters: command.filters,
     observedAt,
+    sessionReadWarnings: warnings,
   });
 }
 

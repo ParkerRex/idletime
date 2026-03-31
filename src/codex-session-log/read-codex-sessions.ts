@@ -2,13 +2,18 @@ import { readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseCodexSession } from "./parse-codex-session.ts";
-import type { ParsedSession, SessionReadOptions } from "./types.ts";
+import type {
+  ParsedSession,
+  SessionReadOptions,
+  SessionReadResult,
+  SessionReadWarning,
+} from "./types.ts";
 
 const defaultSessionRootDirectory = join(homedir(), ".codex", "sessions");
 
 export async function readCodexSessions(
   options: SessionReadOptions,
-): Promise<ParsedSession[]> {
+): Promise<SessionReadResult> {
   if (options.windowEnd.getTime() < options.windowStart.getTime()) {
     throw new Error("windowEnd must be later than windowStart.");
   }
@@ -20,21 +25,44 @@ export async function readCodexSessions(
     options.windowStart,
     options.windowEnd,
   );
-  const parsedSessions = await Promise.all(
+  const parsedResults = await Promise.allSettled(
     candidateFiles.map((candidateFile) => parseCodexSession(candidateFile)),
   );
+  const parsedSessions: ParsedSession[] = [];
+  const warnings: SessionReadWarning[] = [];
 
-  return parsedSessions
-    .filter(
-      (parsedSession) =>
-        parsedSession.lastTimestamp.getTime() >= options.windowStart.getTime() &&
-        parsedSession.firstTimestamp.getTime() <= options.windowEnd.getTime(),
-    )
-    .sort(
-      (leftSession, rightSession) =>
-        leftSession.firstTimestamp.getTime() -
-        rightSession.firstTimestamp.getTime(),
-    );
+  parsedResults.forEach((result, index) => {
+    const candidateFilePath = candidateFiles[index];
+    if (!candidateFilePath) {
+      return;
+    }
+
+    if (result.status === "fulfilled") {
+      parsedSessions.push(result.value);
+      return;
+    }
+
+    warnings.push({
+      kind: "malformed-session-file",
+      sourceFilePath: candidateFilePath,
+      message: result.reason instanceof Error ? result.reason.message : String(result.reason),
+    });
+  });
+
+  return {
+    sessions: parsedSessions
+      .filter(
+        (parsedSession) =>
+          parsedSession.lastTimestamp.getTime() >= options.windowStart.getTime() &&
+          parsedSession.firstTimestamp.getTime() <= options.windowEnd.getTime(),
+      )
+      .sort(
+        (leftSession, rightSession) =>
+          leftSession.firstTimestamp.getTime() -
+          rightSession.firstTimestamp.getTime(),
+      ),
+    warnings,
+  };
 }
 
 async function listCandidateSessionFiles(

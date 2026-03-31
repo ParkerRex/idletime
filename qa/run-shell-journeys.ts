@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 import { readCsvRows, splitPipeList } from "./lib/csv.ts";
 
 const qaDirectoryPath = fileURLToPath(new URL("./", import.meta.url));
@@ -349,18 +350,34 @@ async function runShellCommand(
   commandText: string,
   environment: NodeJS.ProcessEnv,
 ): Promise<{ stderr: string; stdout: string }> {
-  return runCommand(
-    ["/bin/sh", "-lc", commandText],
-    environment,
-  );
-}
-
-async function runCommand(
-  command: string[],
-  environment: NodeJS.ProcessEnv = process.env,
-) {
+  const wrapperScript = [
+    "const { spawnSync } = require('node:child_process');",
+    "const commandText = process.argv[1];",
+    "const repositoryRootPath = process.argv[2];",
+    "const environment = JSON.parse(process.argv[3]);",
+    "const result = spawnSync('/bin/sh', ['-lc', commandText], {",
+    "  cwd: repositoryRootPath,",
+    "  env: { ...process.env, ...environment },",
+    "  encoding: 'utf8',",
+    "  maxBuffer: 20 * 1024 * 1024,",
+    "});",
+    "if (result.stdout) process.stdout.write(result.stdout);",
+    "if (result.stderr) process.stderr.write(result.stderr);",
+    "if (result.error) {",
+    "  console.error(result.error.message);",
+    "  process.exit(1);",
+    "}",
+    "process.exit(result.status ?? (result.signal ? 1 : 0));",
+  ].join(" ");
   const processHandle = Bun.spawn({
-    cmd: command,
+    cmd: [
+      "node",
+      "-e",
+      wrapperScript,
+      commandText,
+      repositoryRootPath,
+      JSON.stringify(environment),
+    ],
     cwd: repositoryRootPath,
     env: environment,
     stdout: "pipe",
@@ -374,7 +391,33 @@ async function runCommand(
 
   if (exitCode !== 0) {
     throw new Error(
-      `Command failed (${command.join(" ")}):\n${stdout}${stderr}`.trim(),
+      `Command failed (${commandText}):\n${stdout}${stderr}`.trim(),
+    );
+  }
+
+  return { stdout, stderr };
+}
+
+async function runCommand(
+  command: string[],
+  environment: NodeJS.ProcessEnv = process.env,
+) {
+  const processHandle = spawnSync(command[0] ?? "", command.slice(1), {
+    cwd: repositoryRootPath,
+    env: environment,
+    encoding: "utf8",
+    maxBuffer: 20 * 1024 * 1024,
+  });
+  const stdout = processHandle.stdout ?? "";
+  const stderr = processHandle.stderr ?? "";
+  const exitCode = processHandle.status ?? (processHandle.signal ? 1 : 0);
+
+  if (exitCode !== 0) {
+    const errorMessage = processHandle.error
+      ? `${processHandle.error.message}\n`
+      : "";
+    throw new Error(
+      `Command failed (${command.join(" ")}):\n${errorMessage}${stdout}${stderr}`.trim(),
     );
   }
 

@@ -26,11 +26,13 @@ export async function buildHourlyCommandResult(
     windowEnd: window.end,
     sessionRootDirectory: options.sessionRootDirectory,
   });
+  const { sessions: parsedSessions, warnings } = sessions;
 
   return {
-    hourlyReport: buildHourlyReport(sessions, {
+    hourlyReport: buildHourlyReport(parsedSessions, {
       filters: command.filters,
       idleCutoffMs: command.idleCutoffMs,
+      sessionReadWarnings: warnings,
       wakeWindow: command.wakeWindow,
       window,
     }),

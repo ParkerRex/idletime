@@ -6,13 +6,14 @@ import type {
   SummaryGroupBy,
   WakeWindow,
 } from "../reporting/types.ts";
+import { CliUsageError } from "./cli-errors.ts";
+import {
+  isCliCommandName,
+  renderCliHelpText,
+  type CliCommandName,
+} from "./command-registry.ts";
 
-export type IdletimeCommandName =
-  | "hourly"
-  | "last24h"
-  | "live"
-  | "refresh-bests"
-  | "today";
+export type IdletimeCommandName = CliCommandName;
 export type IdletimeOutputFormat = "json" | "text";
 
 export type ParsedIdletimeCommand = {
@@ -34,10 +35,10 @@ const defaultWindowMs = parseDurationToMs("24h");
 export function parseIdletimeCommand(argv: string[]): ParsedIdletimeCommand {
   const args = [...argv];
   const firstArgument = args[0];
-  const commandName: IdletimeCommandName = isCommandName(firstArgument)
+  const commandName: IdletimeCommandName = isCliCommandName(firstArgument)
     ? firstArgument
     : "last24h";
-  if (isCommandName(firstArgument)) {
+  if (isCliCommandName(firstArgument)) {
     args.shift();
   }
   const filters: SessionFilters = {
@@ -66,7 +67,7 @@ export function parseIdletimeCommand(argv: string[]): ParsedIdletimeCommand {
       continue;
     }
 
-    if (argument === "--version" || argument === "-v") {
+    if (argument === "--version" || argument === "-v" || argument === "version") {
       versionRequested = true;
       continue;
     }
@@ -77,12 +78,12 @@ export function parseIdletimeCommand(argv: string[]): ParsedIdletimeCommand {
     }
 
     if (argument === "--window") {
-      hourlyWindowMs = parseDurationToMs(readFlagValue(argument, args));
+      hourlyWindowMs = parseDurationOption(readFlagValue(argument, args), argument);
       continue;
     }
 
     if (argument === "--idle-cutoff") {
-      idleCutoffMs = parseDurationToMs(readFlagValue(argument, args));
+      idleCutoffMs = parseDurationOption(readFlagValue(argument, args), argument);
       continue;
     }
 
@@ -112,7 +113,7 @@ export function parseIdletimeCommand(argv: string[]): ParsedIdletimeCommand {
     }
 
     if (argument === "--wake") {
-      wakeWindow = parseWakeWindow(readFlagValue(argument, args));
+      wakeWindow = parseWakeWindowOption(readFlagValue(argument, args), argument);
       continue;
     }
 
@@ -124,7 +125,7 @@ export function parseIdletimeCommand(argv: string[]): ParsedIdletimeCommand {
     if (argument === "--group-by") {
       const dimension = readFlagValue(argument, args);
       if (dimension !== "model" && dimension !== "effort") {
-        throw new Error(`Unsupported group-by dimension "${dimension}".`);
+        throw new CliUsageError(`Unsupported group-by dimension "${dimension}".`);
       }
       if (!groupBy.includes(dimension)) {
         groupBy.push(dimension);
@@ -132,7 +133,7 @@ export function parseIdletimeCommand(argv: string[]): ParsedIdletimeCommand {
       continue;
     }
 
-    throw new Error(`Unknown argument "${argument}".`);
+    throw new CliUsageError(`Unknown argument "${argument}".`);
   }
 
   if (!helpRequested && !versionRequested) {
@@ -163,65 +164,7 @@ export function parseIdletimeCommand(argv: string[]): ParsedIdletimeCommand {
 }
 
 export function renderHelpText(): string {
-  return [
-    "idletime",
-    "Track Codex focus, activity, idle time, and token burn from local session logs.",
-    "",
-    "Usage:",
-    "  idletime [last24h|today|hourly|live|refresh-bests] [options]",
-    "  inside this repo: bun run idletime [last24h|today|hourly|live|refresh-bests] [options]",
-    "",
-    "Modes:",
-    "  last24h   default. visual trailing-24h dashboard with rhythm, spikes, and stats",
-    "  today     local-midnight-to-now summary for the current day",
-    "  hourly    trailing-window chart plus the detailed per-hour table",
-    "  live      repainting task scoreboard; global by default",
-    "  refresh-bests  full-history best-metrics refresh; updates BEST records",
-    "",
-    "How To Read The Dashboard:",
-    "  focus     strict engagement inferred from actual user_message arrivals",
-    "  active    broader direct-session activity in the main thread",
-    "  idle      awake idle time when you pass --wake",
-    "  quiet     non-active time when no wake window is supplied",
-    "  burn      practical burn = input - cached_input + output",
-    "",
-    "Options:",
-    "  --window <24h>          trailing window for hourly or last24h",
-    "  --json                  print a machine-readable JSON snapshot",
-    "  --idle-cutoff <15m>     how long activity stays live after the last event",
-    "  --global                clear workspace scoping and read all sessions",
-    "  --workspace-only <dir>  include only sessions whose cwd starts with this path",
-    "  --session-kind <kind>   direct or subagent",
-    "  --model <name>          include only one primary model",
-    "  --effort <level>        include only one primary reasoning effort",
-    "  --wake <HH:MM-HH:MM>    turn quiet time into real awake idle time",
-    "  --group-by <dimension>  model or effort; repeatable for summaries",
-    "  --share                 trim the output into a screenshot card",
-    "  --version               print the CLI version",
-    "",
-    "Examples:",
-    "  idletime",
-    "  idletime --wake 07:45-23:30",
-    "  idletime --wake 07:45-23:30 --share",
-    "  idletime today --workspace-only /path/to/demo-workspace",
-    "  idletime hourly --window 24h --workspace-only /path/to/demo-workspace",
-    "  idletime live",
-    "  idletime live --workspace-only /path/to/demo-workspace",
-    "  idletime --json",
-    "  idletime live --json",
-    "  idletime refresh-bests",
-    "  idletime --version",
-  ].join("\n");
-}
-
-function isCommandName(value: string | undefined): value is IdletimeCommandName {
-  return (
-    value === "hourly" ||
-    value === "last24h" ||
-    value === "live" ||
-    value === "refresh-bests" ||
-    value === "today"
-  );
+  return renderCliHelpText();
 }
 
 function validateParsedCommand(input: {
@@ -235,10 +178,53 @@ function validateParsedCommand(input: {
   wakeWindow: WakeWindow | null;
 }): void {
   if (input.outputFormat === "json" && input.shareMode) {
-    throw new Error("--share is only supported for human-readable output.");
+    throw new CliUsageError("--share is only supported for human-readable output.");
   }
 
   if (input.commandName !== "refresh-bests") {
+    if (input.commandName === "doctor" || input.commandName === "update") {
+      const unsupportedFlags: string[] = [];
+
+      if (input.outputFormat !== "text") {
+        unsupportedFlags.push("--json");
+      }
+      if (input.shareMode) {
+        unsupportedFlags.push("--share");
+      }
+      if (input.hourlyWindowMs !== defaultWindowMs) {
+        unsupportedFlags.push("--window");
+      }
+      if (input.idleCutoffMs !== defaultIdleCutoffMs) {
+        unsupportedFlags.push("--idle-cutoff");
+      }
+      if (input.wakeWindow) {
+        unsupportedFlags.push("--wake");
+      }
+      if (input.groupBy.length > 0) {
+        unsupportedFlags.push("--group-by");
+      }
+      if (input.filters.workspaceOnlyPrefix) {
+        unsupportedFlags.push("--workspace-only");
+      }
+      if (input.filters.sessionKind) {
+        unsupportedFlags.push("--session-kind");
+      }
+      if (input.filters.model) {
+        unsupportedFlags.push("--model");
+      }
+      if (input.filters.reasoningEffort) {
+        unsupportedFlags.push("--effort");
+      }
+
+      if (unsupportedFlags.length > 0) {
+        throw new CliUsageError(
+          `${input.commandName} does not support ${unsupportedFlags.join(", ")}.`,
+        );
+      }
+
+      return;
+    }
+
     return;
   }
 
@@ -276,7 +262,7 @@ function validateParsedCommand(input: {
   }
 
   if (unsupportedFlags.length > 0) {
-    throw new Error(
+    throw new CliUsageError(
       `refresh-bests does not support ${unsupportedFlags.join(", ")}.`,
     );
   }
@@ -287,14 +273,38 @@ function parseSessionKind(sessionKindText: string): SessionKind {
     return sessionKindText;
   }
 
-  throw new Error(`Unsupported session kind "${sessionKindText}".`);
+  throw new CliUsageError(`Unsupported session kind "${sessionKindText}".`);
 }
 
 function readFlagValue(flagName: string, args: string[]): string {
   const value = args.shift();
   if (!value) {
-    throw new Error(`${flagName} requires a value.`);
+    throw new CliUsageError(`${flagName} requires a value.`);
   }
 
   return value;
+}
+
+function parseDurationOption(value: string, flagName: string): number {
+  try {
+    return parseDurationToMs(value);
+  } catch (error) {
+    throw new CliUsageError(formatOptionError(error, flagName));
+  }
+}
+
+function parseWakeWindowOption(value: string, flagName: string): WakeWindow {
+  try {
+    return parseWakeWindow(value);
+  } catch (error) {
+    throw new CliUsageError(formatOptionError(error, flagName));
+  }
+}
+
+function formatOptionError(error: unknown, fallbackFlagName: string): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return `${fallbackFlagName} is invalid.`;
 }

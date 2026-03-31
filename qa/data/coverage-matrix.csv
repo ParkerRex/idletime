@@ -1,11 +1,13 @@
 surface,layer,required,status,evidence
 installed binary version,bun-global-smoke,yes,covered,journey:installed-version
 installed binary help,bun-global-smoke,yes,covered,journey:help-screen
+installed binary update guidance,bun-global-smoke,yes,covered,journey:update-guidance
 default dashboard render,bun-global-smoke,yes,covered,journey:default-dashboard
 share dashboard render,bun-global-smoke,yes,covered,journey:share-dashboard
 today command render,bun-global-smoke,yes,covered,journey:today-dashboard
 hourly command render,bun-global-smoke,yes,covered,journey:hourly-dashboard
 live dashboard snapshot,bun-global-smoke,yes,covered,journey:live-dashboard
+launcher selection mapping,unit-test,yes,covered,file:test/cli.test.ts
 json last24h snapshot,bun-global-smoke,yes,covered,journey:json-last24h
 json today snapshot,bun-global-smoke,yes,covered,journey:json-today
 json hourly snapshot,bun-global-smoke,yes,covered,journey:json-hourly

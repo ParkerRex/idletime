@@ -34,20 +34,23 @@ export async function buildLast24hCommandResult(
     windowEnd: window.end,
     sessionRootDirectory: options.sessionRootDirectory,
   });
-  const [bestLedger, sessions] = await Promise.all([
+  const [bestLedger, sessionReadResult] = await Promise.all([
     bestLedgerPromise,
     sessionsPromise,
   ]);
+  const { sessions, warnings } = sessionReadResult;
   const summaryReport = buildSummaryReport(sessions, {
     filters: command.filters,
     groupBy: command.groupBy,
     idleCutoffMs: command.idleCutoffMs,
+    sessionReadWarnings: warnings,
     wakeWindow: command.wakeWindow,
     window,
   });
   const hourlyReport = buildHourlyReport(sessions, {
     filters: command.filters,
     idleCutoffMs: command.idleCutoffMs,
+    sessionReadWarnings: warnings,
     wakeWindow: command.wakeWindow,
     window,
   });

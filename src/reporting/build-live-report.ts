@@ -1,4 +1,8 @@
-import type { ParsedSession, ProtocolTaskWindow } from "../codex-session-log/types.ts";
+import type {
+  ParsedSession,
+  ProtocolTaskWindow,
+  SessionReadWarning,
+} from "../codex-session-log/types.ts";
 import {
   buildTaskWindowInterval,
   isTaskWindowCompletedBetween,
@@ -17,6 +21,7 @@ const waitingOnUserWarmMs = 30 * 60_000;
 type BuildLiveReportQuery = {
   filters: SessionFilters;
   observedAt?: Date;
+  sessionReadWarnings?: SessionReadWarning[];
 };
 
 type WaitingOnUserThread = {
@@ -72,6 +77,7 @@ export function buildLiveReport(
     ),
     runningCount: runningTaskWindows.length,
     runningLocations: buildRunningLocations(runningTaskWindows),
+    sessionReadWarnings: query.sessionReadWarnings ?? [],
     waitingThreads: waitingOnUserThreads,
     waitingOnUserCount: waitingOnUserThreads.length,
     waitingOnUserLocations: buildWaitingOnUserLocations(waitingOnUserThreads),

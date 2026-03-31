@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test";
+import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { buildTokenDeltaPoints } from "../src/codex-session-log/extract-token-points.ts";
 import { parseCodexSession } from "../src/codex-session-log/parse-codex-session.ts";
@@ -45,23 +47,60 @@ describe("codex session parsing", () => {
   });
 
   test("reads matching fixture files for a time window", async () => {
-    const parsedSessions = await readCodexSessions({
+    const sessionReadResult = await readCodexSessions({
       sessionRootDirectory: fixtureRootDirectory,
       windowStart: new Date(2026, 2, 26, 0, 0, 0),
       windowEnd: new Date(2026, 2, 26, 23, 59, 59),
     });
 
-    expect(parsedSessions).toHaveLength(2);
-    expect(parsedSessions.map((session) => session.kind)).toEqual([
+    expect(sessionReadResult.sessions).toHaveLength(2);
+    expect(sessionReadResult.sessions.map((session) => session.kind)).toEqual([
       "direct",
       "subagent",
     ]);
-    expect(parsedSessions[1]?.sourceFilePath).toBe(subagentFixturePath);
-    expect(parsedSessions[1]?.forkedFromSessionId).toBe(
+    expect(sessionReadResult.sessions[1]?.sourceFilePath).toBe(subagentFixturePath);
+    expect(sessionReadResult.sessions[1]?.forkedFromSessionId).toBe(
       "fixture-direct-session-1",
     );
-    expect(parsedSessions[1]?.primaryModel).toBe("gpt-5.4-mini");
-    expect(parsedSessions[1]?.taskWindows[0]?.turnId).toBe("subagent-turn-1");
+    expect(sessionReadResult.sessions[1]?.primaryModel).toBe("gpt-5.4-mini");
+    expect(sessionReadResult.sessions[1]?.taskWindows[0]?.turnId).toBe("subagent-turn-1");
+    expect(sessionReadResult.warnings).toEqual([]);
+  });
+
+  test("skips malformed session files and records warning metadata", async () => {
+    const sessionRootDirectory = await mkdtemp(
+      join(tmpdir(), "idletime-session-read-"),
+    );
+    const sessionDirectory = join(sessionRootDirectory, "2026", "03", "26");
+    await mkdir(sessionDirectory, { recursive: true });
+
+    await writeFile(
+      join(sessionDirectory, "direct-session.jsonl"),
+      await readFile(directFixturePath, "utf8"),
+      "utf8",
+    );
+    await writeFile(
+      join(sessionDirectory, "malformed-session.jsonl"),
+      "{\"timestamp\":\"2026-03-26T19:50:00.000Z\",\"type\":\"event_msg\"",
+      "utf8",
+    );
+
+    const sessionReadResult = await readCodexSessions({
+      sessionRootDirectory,
+      windowStart: new Date(2026, 2, 26, 0, 0, 0),
+      windowEnd: new Date(2026, 2, 26, 23, 59, 59),
+    });
+
+    expect(sessionReadResult.sessions).toHaveLength(1);
+    expect(sessionReadResult.sessions[0]?.sessionId).toBe(
+      "fixture-direct-session-1",
+    );
+    expect(sessionReadResult.warnings).toHaveLength(1);
+    expect(sessionReadResult.warnings[0]?.kind).toBe("malformed-session-file");
+    expect(sessionReadResult.warnings[0]?.sourceFilePath).toBe(
+      join(sessionDirectory, "malformed-session.jsonl"),
+    );
+    expect(typeof sessionReadResult.warnings[0]?.message).toBe("string");
   });
 
   test("uses last token usage when cumulative totals reset", () => {

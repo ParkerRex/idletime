@@ -29,10 +29,11 @@ export async function buildTodayCommandResult(
     windowEnd: window.end,
     sessionRootDirectory: options.sessionRootDirectory,
   });
-  const [bestLedger, sessions] = await Promise.all([
+  const [bestLedger, sessionReadResult] = await Promise.all([
     bestLedgerPromise,
     sessionsPromise,
   ]);
+  const { sessions, warnings } = sessionReadResult;
 
   return {
     bestLedger,
@@ -40,6 +41,7 @@ export async function buildTodayCommandResult(
       filters: command.filters,
       groupBy: command.groupBy,
       idleCutoffMs: command.idleCutoffMs,
+      sessionReadWarnings: warnings,
       wakeWindow: command.wakeWindow,
       window,
     }),
