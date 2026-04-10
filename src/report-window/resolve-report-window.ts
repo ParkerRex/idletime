@@ -41,6 +41,20 @@ export function resolveTodayReportWindow(
   };
 }
 
+export function resolveWeekReportWindow(
+  options: ResolveWindowOptions = {},
+): ReportWindow {
+  const now = options.now ?? new Date();
+  const durationMs = 7 * 24 * 60 * 60 * 1000;
+
+  return {
+    label: "week",
+    start: new Date(now.getTime() - durationMs),
+    end: now,
+    timeZone: options.timeZone ?? getLocalTimeZone(),
+  };
+}
+
 function getLocalTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone;
 }

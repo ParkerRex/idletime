@@ -330,7 +330,7 @@ done
       },
     });
 
-    expect(lookbackStart.toISOString()).toBe("2026-03-25T00:00:00.000Z");
+    expect(lookbackStart.toISOString()).toBe("2026-03-24T16:00:00.000Z");
   });
 
   test("parses status percentages as remaining quota", () => {

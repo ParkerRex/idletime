@@ -6,6 +6,14 @@ The format is based on Keep a Changelog and this project currently tracks releas
 
 ## [Unreleased]
 
+### Added
+
+- Added a dedicated `idletime week` mode that renders a 7-day token-burn view with a weekly line chart and daily burn rows.
+
+### Changed
+
+- The launcher now exposes `week` as an explicit mode and uses clearer selection copy instead of the old shorthand-heavy prompt.
+
 ## [0.3.0] - 2026-03-31
 
 ### Added

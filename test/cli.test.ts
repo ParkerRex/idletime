@@ -38,6 +38,12 @@ describe("idletime command parsing", () => {
     expect(parsedCommand.filters.workspaceOnlyPrefix).toBeNull();
   });
 
+  test("accepts the week command", () => {
+    const parsedCommand = parseIdletimeCommand(["week"]);
+
+    expect(parsedCommand.commandName).toBe("week");
+  });
+
   test("accepts explicit global live scope", () => {
     const parsedCommand = parseIdletimeCommand(["live", "--global"]);
 
@@ -189,8 +195,10 @@ describe("idletime command parsing", () => {
 
   test("interprets launcher selections without state", () => {
     expect(interpretLauncherSelection("")).toBe("last24h");
+    expect(interpretLauncherSelection("3")).toBe("week");
+    expect(interpretLauncherSelection("4")).toBe("hourly");
     expect(interpretLauncherSelection("d")).toBe("doctor");
-    expect(interpretLauncherSelection("5")).toBe("update");
-    expect(interpretLauncherSelection("6")).toBe("refresh-bests");
+    expect(interpretLauncherSelection("6")).toBe("update");
+    expect(interpretLauncherSelection("7")).toBe("refresh-bests");
   });
 });

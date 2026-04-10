@@ -5,6 +5,7 @@ export type CliCommandName =
   | "live"
   | "refresh-bests"
   | "update"
+  | "week"
   | "today";
 
 type CliCommandGroup = "mode" | "support";
@@ -28,6 +29,12 @@ const cliCommandDefinitions = [
     group: "mode",
     summary: "local-midnight-to-now summary for the current day",
     example: "idletime today",
+  },
+  {
+    name: "week",
+    group: "mode",
+    summary: "dedicated 7-day burn view with a weekly line chart",
+    example: "idletime week",
   },
   {
     name: "hourly",
@@ -66,7 +73,7 @@ const cliCommandNameSet = new Set<CliCommandName>(
 );
 
 export const commandUsageText =
-  "idletime [last24h|today|hourly|live|refresh-bests|update|doctor] [options]";
+  "idletime [last24h|today|week|hourly|live|refresh-bests|update|doctor] [options]";
 export const launcherDefaultCommandName: CliCommandName = "last24h";
 
 export function isCliCommandName(
@@ -93,7 +100,7 @@ export function renderCliHelpText(): string {
     "",
     "Usage:",
     `  ${commandUsageText}`,
-    "  inside this repo: bun run idletime [last24h|today|hourly|live|refresh-bests|update|doctor] [options]",
+    "  inside this repo: bun run idletime [last24h|today|week|hourly|live|refresh-bests|update|doctor] [options]",
     "  bare `idletime` opens the launcher when run in a terminal",
     "",
     "Modes:",

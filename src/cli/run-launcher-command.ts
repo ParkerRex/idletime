@@ -26,7 +26,13 @@ export async function runLauncherCommand(): Promise<LauncherSelection> {
   console.log("");
 
   for (const [index, definition] of getCliCommandDefinitions().entries()) {
-    const label = `${index + 1}. ${definition.name.padEnd(14)} ${definition.summary}`;
+    const alias =
+      definition.name === "update"
+        ? " (u)"
+        : definition.name === "doctor"
+          ? " (d)"
+          : "";
+    const label = `${index + 1}. ${definition.name.padEnd(14)}${alias.padEnd(4)} ${definition.summary}`;
     console.log(label);
   }
 
@@ -59,7 +65,7 @@ async function promptForSelection(
 
     interfaceHandle.once("SIGINT", () => finish("q"));
     interfaceHandle.question(
-      paint(`Select [Enter=${launcherDefaultCommandName}, 1-7, u, h, v, d, q]: `, "value", renderOptions),
+      paint(`Select [Enter=${launcherDefaultCommandName}, 1-8, help, version, quit]: `, "value", renderOptions),
       (answer) => finish(answer),
     );
   });
@@ -82,16 +88,20 @@ export function interpretLauncherSelection(
     return "today";
   }
 
-  if (normalizedSelection === "3" || normalizedSelection === "hourly") {
+  if (normalizedSelection === "3" || normalizedSelection === "week") {
+    return "week";
+  }
+
+  if (normalizedSelection === "4" || normalizedSelection === "hourly") {
     return "hourly";
   }
 
-  if (normalizedSelection === "4" || normalizedSelection === "live") {
+  if (normalizedSelection === "5" || normalizedSelection === "live") {
     return "live";
   }
 
   if (
-    normalizedSelection === "5" ||
+    normalizedSelection === "6" ||
     normalizedSelection === "update" ||
     normalizedSelection === "u"
   ) {
@@ -99,14 +109,14 @@ export function interpretLauncherSelection(
   }
 
   if (
-    normalizedSelection === "6" ||
+    normalizedSelection === "7" ||
     normalizedSelection === "refresh-bests"
   ) {
     return "refresh-bests";
   }
 
   if (
-    normalizedSelection === "7" ||
+    normalizedSelection === "8" ||
     normalizedSelection === "doctor" ||
     normalizedSelection === "d"
   ) {

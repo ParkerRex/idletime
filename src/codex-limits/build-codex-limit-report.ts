@@ -70,6 +70,7 @@ export function resolveCodexLimitLookbackStart(options: {
   const candidateTimestamps = [
     options.defaultStart.getTime(),
     options.now.getTime() - parseDurationToMs("1h"),
+    options.now.getTime() - parseDurationToMs("7d"),
   ];
 
   if (options.rateLimits.weeklyWindow) {

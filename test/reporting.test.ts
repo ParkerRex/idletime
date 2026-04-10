@@ -27,6 +27,7 @@ import { renderHourlyReport } from "../src/reporting/render-hourly-report.ts";
 import { renderLiveReport } from "../src/reporting/render-live-report.ts";
 import { buildRhythmSection } from "../src/reporting/render-rhythm-section.ts";
 import { renderSummaryReport } from "../src/reporting/render-summary-report.ts";
+import { renderWeekReport } from "../src/reporting/render-week-report.ts";
 import type { CodexLimitReport } from "../src/codex-limits/types.ts";
 import type { SessionReadWarning } from "../src/codex-session-log/types.ts";
 import type {
@@ -210,6 +211,78 @@ describe("reporting", () => {
 
     expect(report.tokenTotals.rawTotalTokens).toBe(200);
     expect(report.tokenTotals.practicalBurn).toBe(200);
+  });
+
+  test("builds a seven-day burn trend from local-day buckets", () => {
+    const reportWindow = {
+      label: "weekly-burn-window",
+      start: new Date("2026-03-26T08:00:00-04:00"),
+      end: new Date("2026-03-26T22:00:00-04:00"),
+      timeZone: "America/New_York",
+    };
+    const report = buildSummaryReport(
+      [
+        createSession({
+          sessionId: "trend-direct",
+          kind: "direct",
+          eventTimes: [
+            "2026-03-20T09:00:00-04:00",
+            "2026-03-21T09:00:00-04:00",
+            "2026-03-23T09:00:00-04:00",
+            "2026-03-25T09:00:00-04:00",
+            "2026-03-26T09:00:00-04:00",
+          ],
+          userMessageTimes: ["2026-03-26T09:00:00-04:00"],
+          tokenPoints: [
+            createTokenPoint(
+              "2026-03-20T09:00:00-04:00",
+              createUsage(120, 0, 0, 120),
+              createUsage(120, 0, 0, 120),
+            ),
+            createTokenPoint(
+              "2026-03-21T09:00:00-04:00",
+              createUsage(80, 0, 0, 80),
+              createUsage(80, 0, 0, 80),
+            ),
+            createTokenPoint(
+              "2026-03-23T09:00:00-04:00",
+              createUsage(200, 0, 0, 200),
+              createUsage(200, 0, 0, 200),
+            ),
+            createTokenPoint(
+              "2026-03-25T09:00:00-04:00",
+              createUsage(60, 0, 0, 60),
+              createUsage(60, 0, 0, 60),
+            ),
+            createTokenPoint(
+              "2026-03-26T09:00:00-04:00",
+              createUsage(140, 0, 0, 140),
+              createUsage(140, 0, 0, 140),
+            ),
+          ],
+          usage: createUsage(140, 0, 0, 140),
+          model: "gpt-5.4",
+          reasoningEffort: "medium",
+        }),
+      ],
+      {
+        filters: {
+          workspaceOnlyPrefix: null,
+          sessionKind: null,
+          model: null,
+          reasoningEffort: null,
+        },
+        groupBy: [],
+        idleCutoffMs: parseDurationToMs("15m"),
+        wakeWindow: null,
+        window: reportWindow,
+      },
+    );
+
+    expect(report.weeklyBurnTrend).toHaveLength(7);
+    expect(
+      report.weeklyBurnTrend.map((point) => point.practicalBurn),
+    ).toEqual([120, 80, 0, 200, 0, 60, 140]);
   });
 
   test("builds the idletime wordmark band at panel width", () => {
@@ -436,6 +509,9 @@ describe("reporting", () => {
     expect(fullRenderedReport).toContain("61K tokens");
     expect(fullRenderedReport).toContain("OpenAI 5h window");
     expect(fullRenderedReport).toContain("OpenAI weekly window");
+    expect(fullRenderedReport).toContain("week burn");
+    expect(fullRenderedReport).toContain("last 7d");
+    expect(fullRenderedReport).toContain("Fri Sat Sun Mon Tue Wed Thu");
 
     expect(shareRenderedReport).toContain("Limits (global)");
     expect(shareRenderedReport).toContain("5h");
@@ -444,6 +520,27 @@ describe("reporting", () => {
     expect(shareRenderedReport).toContain("76.0% remaining");
     expect(shareRenderedReport).toContain("59.0% used");
     expect(shareRenderedReport).toContain("24.0% used");
+    expect(shareRenderedReport).toContain("week burn");
+    expect(shareRenderedReport).toContain("last 7d");
+  });
+
+  test("renders a dedicated week report with the weekly burn chart first", () => {
+    const fixture = createSnapshotSerializationFixture();
+    const renderedReport = renderWeekReport(
+      fixture.summaryReport,
+      {
+        colorEnabled: false,
+        shareMode: false,
+        terminalWidth: 80,
+      },
+      null,
+    );
+
+    expect(renderedReport).toContain("idletime week");
+    expect(renderedReport).toContain("Weekly Burn");
+    expect(renderedReport).toContain("rolling 7d total");
+    expect(renderedReport).toContain("Daily Burn");
+    expect(renderedReport).toContain("Thu");
   });
 
   test("renders unavailable codex limits when no quota snapshot exists", () => {
@@ -812,6 +909,12 @@ describe("reporting", () => {
     expect(snapshot.summaryReport.tokenTotals.rawTotalTokens).toBe(
       fixture.summaryReport.tokenTotals.rawTotalTokens,
     );
+    expect(snapshot.summaryReport.weeklyBurnTrend).toHaveLength(7);
+    expect(snapshot.summaryReport.weeklyBurnTrend[6]).toEqual({
+      start: "2026-03-26T04:00:00.000Z",
+      end: fixture.summaryReport.window.end.toISOString(),
+      practicalBurn: 150,
+    });
     expect(snapshot.summaryReport.codexLimitReport?.fiveHourWindowBurnTokens).toBe(
       61_000,
     );
@@ -827,6 +930,22 @@ describe("reporting", () => {
     expect(snapshot.summaryReport.wakeSummary?.awakeIdleMs).toBe(
       fixture.summaryReport.wakeSummary?.awakeIdleMs,
     );
+  });
+
+  test("serializes a week snapshot with an explicit null hourly report", () => {
+    const fixture = createSnapshotSerializationFixture();
+    const serializedSnapshot = serializeSummarySnapshot({
+      command: fixture.summaryCommand,
+      generatedAt: fixture.generatedAt,
+      hourlyReport: null,
+      mode: "week",
+      summaryReport: fixture.summaryReport,
+    });
+    const snapshot = JSON.parse(serializedSnapshot) as SerializedSummarySnapshotV1;
+
+    expect(snapshot.mode).toBe("week");
+    expect(snapshot.hourlyReport).toBeNull();
+    expect(snapshot.summaryReport.weeklyBurnTrend).toHaveLength(7);
   });
 
   test("serializes an hourly snapshot with exact bucket timestamps", () => {

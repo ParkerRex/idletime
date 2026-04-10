@@ -2,6 +2,7 @@ import type { ParsedSession } from "../codex-session-log/types.ts";
 import { buildTokenDeltaPoints } from "../codex-session-log/extract-token-points.ts";
 import { parseDurationToMs } from "../report-window/parse-duration.ts";
 import { buildActivityMetrics } from "./activity-metrics.ts";
+import { buildWeeklyBurnTrend } from "./build-weekly-burn-trend.ts";
 import { filterSessions, groupSessions } from "./filter-sessions.ts";
 import {
   intersectTimeIntervals,
@@ -70,6 +71,7 @@ export function buildSummaryReport(
     sessionReadWarnings: query.sessionReadWarnings ?? [],
     sessionCounts,
     tokenTotals: sumTokenTotals(filteredSessions, windowInterval),
+    weeklyBurnTrend: buildWeeklyBurnTrend(filteredSessions, query.window),
     wakeSummary: query.wakeWindow
       ? summarizeWakeWindow(query.wakeWindow, query.window, metrics)
       : null,

@@ -1,5 +1,6 @@
 import {
   buildBar,
+  buildSparkline,
   buildSplitBar,
   formatCompactInteger,
   formatDurationCompact,
@@ -234,6 +235,7 @@ function renderFullSummaryReport(
       "raw",
     ),
   );
+  lines.push(...renderWeeklyBurnTrend(report, options));
 
   if (report.wakeSummary) {
     lines.push("");
@@ -420,6 +422,17 @@ function renderShareSummaryReport(
   );
   lines.push(
     renderSnapshotRow(
+      "week burn",
+      formatCompactInteger(sumWeeklyBurnTrend(report)),
+      `${buildSparkline(
+        report.weeklyBurnTrend.map((point) => point.practicalBurn),
+      )} last 7d • ${formatCompactInteger(resolveTodayBurn(report))} today`,
+      "burn",
+      options,
+    ),
+  );
+  lines.push(
+    renderSnapshotRow(
       "agents",
       `${report.metrics.peakConcurrentAgents} peak`,
       `${formatDurationHours(report.metrics.cumulativeAgentMs)} cumulative`,
@@ -599,6 +612,37 @@ function renderLimitsSection(
   );
 
   return lines;
+}
+
+function renderWeeklyBurnTrend(
+  report: SummaryReport,
+  options: RenderOptions,
+): string[] {
+  const sparkline = buildSparkline(
+    report.weeklyBurnTrend.map((point) => point.practicalBurn),
+  );
+  const dayLabels = report.weeklyBurnTrend
+    .map((point) => formatWeekdayLabel(point.start, report.window.timeZone))
+    .join(" ");
+
+  return [
+    `${paint(padRight("  week burn", 14), "muted", options)} ${paint(
+      sparkline,
+      "burn",
+      options,
+    )}  ${paint(
+      padRight(formatCompactInteger(sumWeeklyBurnTrend(report)), 7),
+      "burn",
+      options,
+    )} ${dim(
+      `last 7d • ${formatCompactInteger(resolveTodayBurn(report))} today`,
+      options,
+    )}`,
+    `${paint(padRight("  days", 14), "muted", options)} ${dim(
+      dayLabels,
+      options,
+    )}`,
+  ];
 }
 
 function buildLimitsSectionTitle(report: SummaryReport): string {
@@ -870,6 +914,24 @@ function describeDayPeriod(
 
 function formatDurationLabel(durationMs: number): string {
   return `${Math.round(durationMs / 60_000)}m`;
+}
+
+function formatWeekdayLabel(timestamp: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    weekday: "short",
+  }).format(timestamp);
+}
+
+function resolveTodayBurn(report: SummaryReport): number {
+  return report.weeklyBurnTrend[report.weeklyBurnTrend.length - 1]?.practicalBurn ?? 0;
+}
+
+function sumWeeklyBurnTrend(report: SummaryReport): number {
+  return report.weeklyBurnTrend.reduce(
+    (totalBurn, point) => totalBurn + point.practicalBurn,
+    0,
+  );
 }
 
 function renderMetricRow(

@@ -39,6 +39,12 @@ export type TokenTotals = {
   rawTotalTokens: number;
 };
 
+export type DailyBurnPoint = {
+  start: Date;
+  end: Date;
+  practicalBurn: number;
+};
+
 export type WakeWindow = {
   label: string;
   startMinutes: number;
@@ -78,7 +84,7 @@ export type RenderOptions = {
 
 export const jsonReportSchemaVersion = 1 as const;
 
-export type JsonReportMode = "last24h" | "today" | "hourly" | "live";
+export type JsonReportMode = "last24h" | "today" | "week" | "hourly" | "live";
 
 export type JsonTimeInterval = {
   start: string;
@@ -136,6 +142,7 @@ export type SummaryReport = {
   sessionReadWarnings: SessionReadWarning[];
   sessionCounts: Record<SessionKind | "total", number>;
   tokenTotals: TokenTotals;
+  weeklyBurnTrend: DailyBurnPoint[];
   wakeSummary: WakeWindowSummary | null;
   window: ReportWindow;
 };

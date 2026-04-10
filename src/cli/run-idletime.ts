@@ -19,6 +19,10 @@ import { runDoctorCommand } from "./run-doctor-command.ts";
 import { runRefreshBestsCommand } from "./run-refresh-bests-command.ts";
 import { runUpdateCommand } from "./run-update-command.ts";
 import {
+  buildWeekCommandResult,
+  runWeekCommand,
+} from "./run-week-command.ts";
+import {
   buildTodayCommandResult,
   runTodayCommand,
 } from "./run-today-command.ts";
@@ -73,6 +77,7 @@ async function runLauncherSelection(
   | "live"
   | "refresh-bests"
   | "update"
+  | "week"
   | "today",
   command: ParsedIdletimeCommand,
 ): Promise<void> {
@@ -136,6 +141,8 @@ async function runCommand(command: ParsedIdletimeCommand): Promise<void> {
   const output =
     command.commandName === "hourly"
       ? await runHourlyCommand(command)
+      : command.commandName === "week"
+        ? await runWeekCommand(command)
       : command.commandName === "today"
         ? await runTodayCommand(command)
         : await runLast24hCommand(command);
@@ -180,6 +187,20 @@ async function buildJsonOutput(command: ParsedIdletimeCommand): Promise<string> 
       generatedAt,
       hourlyReport: null,
       mode: "today",
+      summaryReport: commandResult.summaryReport,
+    });
+  }
+
+  if (command.commandName === "week") {
+    const commandResult = await buildWeekCommandResult(command, {
+      now: generatedAt,
+    });
+
+    return serializeSummarySnapshot({
+      command: buildJsonSummarySnapshotCommand(command),
+      generatedAt,
+      hourlyReport: null,
+      mode: "week",
       summaryReport: commandResult.summaryReport,
     });
   }

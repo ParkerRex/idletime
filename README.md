@@ -8,6 +8,7 @@ Local Bun CLI for Codex activity, token burn, visual 24-hour rhythm charts, and 
 - When was the direct thread active?
 - Where were the dead spots or awake idle gaps?
 - Which hours spiked in token burn?
+- How much have I burned over the last week?
 - How much of the day was direct work versus subagent runtime?
 - How much OpenAI 5-hour and weekly quota is left right now?
 
@@ -85,6 +86,7 @@ That shows:
 - A gold `BEST` plaque in the header for your top concurrent agents, top 24-hour raw burn, and top agent-sum record
 - A framed trailing-24h dashboard
 - A `Limits` section with live `5h remaining`, `week remaining`, `5h used`, and `week used` rows tied to OpenAI's current quota windows
+- A small `week burn` trend inside `Limits` for the last 7 daily burn buckets
 - A dedicated `Agents` section that charts concurrent child-task windows over the day
 - A `24h Rhythm` strip for `focus`, `active`, `quiet` or `idle`, and `burn`
 - `Spike Callouts` for the biggest burn hours
@@ -103,6 +105,7 @@ Additional behavior:
 
 - `last24h`: the default trailing window, clipped to the actual last 24 hours
 - `today`: local midnight to now
+- `week`: dedicated rolling 7-day burn view
 - `live`: global task scoreboard by default, with `waiting on you`, `running`, recent concurrency, and per-project live state
 - `refresh-bests`: explicit full-history personal-record refresh for the `BEST` plaque and best-related notifications
 - `direct`: user-started work in the main CLI or compatible direct session types
@@ -133,6 +136,12 @@ Show the current local day only:
 
 ```bash
 bun run idletime today
+```
+
+Open the dedicated weekly burn view:
+
+```bash
+bun run idletime week
 ```
 
 Limit to one workspace:
@@ -186,6 +195,10 @@ bun run idletime today --json
 ```
 
 ```bash
+bun run idletime week --json
+```
+
+```bash
 bun run idletime hourly --json
 ```
 
@@ -193,7 +206,7 @@ bun run idletime hourly --json
 bun run idletime live --json
 ```
 
-`--json` is read-only. It emits one versioned JSON snapshot and exits. On `last24h` and `today`, it does not refresh best metrics or trigger best-related notifications. `--share` is human-only and cannot be combined with `--json`.
+`--json` is read-only. It emits one versioned JSON snapshot and exits. On `last24h`, `today`, and `week`, it does not refresh best metrics or trigger best-related notifications. `--share` is human-only and cannot be combined with `--json`.
 
 ## Share Mode
 

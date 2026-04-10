@@ -1,4 +1,10 @@
-import type { HourlyReport, SummaryBreakdown, SummaryBreakdownRow, SummaryReport } from "./types.ts";
+import type {
+  DailyBurnPoint,
+  HourlyReport,
+  SummaryBreakdown,
+  SummaryBreakdownRow,
+  SummaryReport,
+} from "./types.ts";
 import type {
   BurnEstimate,
   CodexLimitReport,
@@ -56,12 +62,13 @@ export type SerializedSummaryReportV1 = {
   sessionReadWarnings: SummaryReport["sessionReadWarnings"];
   sessionCounts: SummaryReport["sessionCounts"];
   tokenTotals: SummaryReport["tokenTotals"];
+  weeklyBurnTrend: SerializedDailyBurnPointV1[];
   wakeSummary: SerializedWakeWindowSummaryV1 | null;
   window: JsonReportWindow;
 };
 
 export type SerializedSummarySnapshotV1 = JsonSnapshotBase<
-  Extract<JsonReportMode, "last24h" | "today">,
+  Extract<JsonReportMode, "last24h" | "today" | "week">,
   JsonSummarySnapshotCommand
 > & {
   hourlyReport: SerializedHourlyReportV1 | null;
@@ -72,7 +79,7 @@ export type SerializeSummarySnapshotInput = {
   command: JsonSummarySnapshotCommand;
   generatedAt: Date;
   hourlyReport: HourlyReport | null;
-  mode: Extract<JsonReportMode, "last24h" | "today">;
+  mode: Extract<JsonReportMode, "last24h" | "today" | "week">;
   summaryReport: SummaryReport;
 };
 
@@ -113,6 +120,12 @@ export type SerializedBurnEstimateV1 =
       kind: "unavailable";
       reason: Extract<BurnEstimate, { kind: "unavailable" }>["reason"];
     };
+
+export type SerializedDailyBurnPointV1 = {
+  start: string;
+  end: string;
+  practicalBurn: number;
+};
 
 export function serializeSummarySnapshot(
   input: SerializeSummarySnapshotInput,
@@ -162,6 +175,7 @@ function serializeSummaryReportPayload(
     ),
     sessionCounts: { ...summaryReport.sessionCounts },
     tokenTotals: { ...summaryReport.tokenTotals },
+    weeklyBurnTrend: summaryReport.weeklyBurnTrend.map(serializeDailyBurnPoint),
     wakeSummary: summaryReport.wakeSummary
       ? serializeWakeWindowSummary(summaryReport.wakeSummary)
       : null,
@@ -245,5 +259,15 @@ function serializeSummaryBreakdownRow(
     cumulativeAgentMs: row.cumulativeAgentMs,
     practicalBurn: row.practicalBurn,
     rawTotalTokens: row.rawTotalTokens,
+  };
+}
+
+function serializeDailyBurnPoint(
+  point: DailyBurnPoint,
+): SerializedDailyBurnPointV1 {
+  return {
+    start: point.start.toISOString(),
+    end: point.end.toISOString(),
+    practicalBurn: point.practicalBurn,
   };
 }
