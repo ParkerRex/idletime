@@ -1,0 +1,7 @@
+interface:
+  display_name: "ExecPlan Flow"
+  short_description: "Plan, grill, and execute via subagents."
+  default_prompt: "Use $execplan-flow to run planflow mode for this task."
+
+policy:
+  allow_implicit_invocation: true
